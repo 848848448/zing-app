@@ -1,0 +1,61 @@
+name: qa
+on:
+  workflow_dispatch:
+
+# Full QA: install b1, verify launch + update control, play a local looping
+# audio fixture (no site credentials) and verify playback time keeps advancing
+# across backgrounding with the foreground-service notification up, check the
+# production sign-in page renders, then update b1 -> b2 through the in-app
+# updater (b2 is the release we then ship).
+# Needs secrets: KEYSTORE_B64, KEYSTORE_PASSWORD.
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Build + sign b1 and b2 (QA hooks enabled)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          QA_MODE: '1'
+        run: |
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/zing.jks"
+          BUILD_NO=1 VERSION_NAME=1.0-b1 bash "$(ls *build.sh | grep -v ghwf | head -1)"
+          KEYSTORE="$RUNNER_TEMP/zing.jks" KEY_ALIAS=zing BUILD_NO=1 VERSION_NAME=1.0-b1 bash "$(ls *sign.sh | head -1)"
+          mv Zing-1.0-b1.apk qa-b1.apk
+          BUILD_NO=2 VERSION_NAME=1.0-b2 bash "$(ls *build.sh | grep -v ghwf | head -1)"
+          KEYSTORE="$RUNNER_TEMP/zing.jks" KEY_ALIAS=zing BUILD_NO=2 VERSION_NAME=1.0-b2 bash "$(ls *sign.sh | head -1)"
+          mv Zing-1.0-b2.apk qa-b2.apk
+      - name: Publish b2 as latest release (update target)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0-b2
+          name: Zing v1.0-b2 (QA fixture - temporary)
+          prerelease: true
+          files: qa-b2.apk
+      - name: Emulator QA
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          script: |
+            python3 $GITHUB_WORKSPACE/qa/run.py
+      - name: Remove temporary QA release
+        if: always()
+        run: gh release delete v1.0-b2 --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-output
+          path: qa-out/
