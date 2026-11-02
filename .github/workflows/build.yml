@@ -20,7 +20,7 @@ jobs:
       - name: Build unsigned APK
         env:
           BUILD_NO: ${{ github.run_number }}
-        run: ./build.sh
+        run: bash build.sh
       - name: Decode signing key
         run: echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/zing.jks"
       - name: Sign APK
@@ -28,7 +28,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEYSTORE: ${{ runner.temp }}/zing.jks
           BUILD_NO: ${{ github.run_number }}
-        run: ./sign.sh
+        run: bash sign.sh
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
