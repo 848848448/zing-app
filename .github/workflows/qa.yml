@@ -27,11 +27,11 @@ jobs:
           QA_MODE: '1'
         run: |
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/zing.jks"
-          BUILD_NO=1 VERSION_NAME=1.0-b1 bash "$(ls *build.sh | grep -v ghwf | head -1)"
-          KEYSTORE="$RUNNER_TEMP/zing.jks" KEY_ALIAS=zing BUILD_NO=1 VERSION_NAME=1.0-b1 bash "$(ls *sign.sh | head -1)"
+          BUILD_NO=1 VERSION_NAME=1.0-b1 bash build.sh
+          KEYSTORE="$RUNNER_TEMP/zing.jks" KEY_ALIAS=zing BUILD_NO=1 VERSION_NAME=1.0-b1 bash sign.sh
           mv Zing-1.0-b1.apk qa-b1.apk
-          BUILD_NO=2 VERSION_NAME=1.0-b2 bash "$(ls *build.sh | grep -v ghwf | head -1)"
-          KEYSTORE="$RUNNER_TEMP/zing.jks" KEY_ALIAS=zing BUILD_NO=2 VERSION_NAME=1.0-b2 bash "$(ls *sign.sh | head -1)"
+          BUILD_NO=2 VERSION_NAME=1.0-b2 bash build.sh
+          KEYSTORE="$RUNNER_TEMP/zing.jks" KEY_ALIAS=zing BUILD_NO=2 VERSION_NAME=1.0-b2 bash sign.sh
           mv Zing-1.0-b2.apk qa-b2.apk
       - name: Publish b2 as latest release (update target)
         uses: softprops/action-gh-release@v2
