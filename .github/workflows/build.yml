@@ -1,6 +1,7 @@
 name: build
 on:
-  # push trigger re-enabled once source + signing secrets are in place
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
