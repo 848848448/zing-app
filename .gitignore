@@ -1,0 +1,7 @@
+build/
+*.jks
+*.keystore
+local.properties
+Zing-*.apk
+qa-out/
+qa-fixture/
