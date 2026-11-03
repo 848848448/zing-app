@@ -56,7 +56,7 @@ os.makedirs("qa-fixture", exist_ok=True)
 with open("qa-fixture/index.html", "w") as f:
     f.write('<!doctype html><title>Zing QA fixture</title>'
             '<body style="background:#0a0a12;color:#fff">fixture'
-            "<button onclick=\"document.getElementById('audio').play()\">Play fixture</button>"
+            "<button onclick=\"document.getElementById('audio').play();if(window.ZingNative&&ZingNative.updateNowPlaying)ZingNative.updateNowPlaying('QA Fixture Song','QA Artist','');\">Play fixture</button>"
             '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
             '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
@@ -154,6 +154,8 @@ shot("qa-3-backgrounded-home")
 sh("adb shell dumpsys notification > qa-out/notif.txt")
 notif = open("qa-out/notif.txt").read()
 result("playback notification while backgrounded", "pkg=com.zingmusic.app" in notif and "channel=playback" in notif)
+result("notification shows now-playing title", "QA Fixture Song" in notif)
+result("notification has media actions", "Pause" in notif or "Play" in notif)
 print("FOREGROUND_TIMES", t1, "BACKGROUND_TIMES", t2, flush=True)
 result("playback advanced across backgrounding", bool(t1) and bool(t2) and t2[-1] > last1 + 5)
 sh("adb shell logcat -d > qa-out/full-logcat.txt")
