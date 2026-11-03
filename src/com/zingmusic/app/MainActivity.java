@@ -106,6 +106,15 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String url) {
+                // Trust boundary: only our own site (and, in QA builds, the
+                // local fixture) may receive the navigator.share bridge shim.
+                // A server-side redirect or a hostile page that ever loads
+                // inside the WebView gets no bridge wiring.
+                Uri page = url == null ? null : Uri.parse(url);
+                String h = page == null ? null : page.getHost();
+                boolean own = HOST.equals(h)
+                        || (qaMode && h != null && (h.equals("10.0.2.2") || h.equals("localhost") || h.equals("127.0.0.1")));
+                if (!own) return;
                 // Give pages a real navigator.share backed by the Android share
                 // sheet. Sites with their own fallback (copy link) are
                 // untouched when this bridge is absent.
