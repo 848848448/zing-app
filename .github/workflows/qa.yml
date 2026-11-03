@@ -2,11 +2,15 @@ name: qa
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 # Full QA: install b1, verify launch + update control, play a local looping
 # audio fixture (no site credentials) and verify playback time keeps advancing
 # across backgrounding with the foreground-service notification up, check the
 # production sign-in page renders, then update b1 -> b2 through the in-app
-# updater (b2 is the release we then ship).
+# updater. The QA b2 is a temporary prerelease, deleted after the run; the
+# production b2 ships separately from the build workflow (QA hooks off).
 # Needs secrets: KEYSTORE_B64, KEYSTORE_PASSWORD.
 jobs:
   qa:
