@@ -55,7 +55,10 @@ def result(name, ok):
 # permissions, no appops bypass. Every prompt is answered through visible UI.
 r = sh("adb install prod.apk")
 result("install production APK", "Success" in r.stdout)
-sh("adb shell monkey -p %s -c android.intent.category.LAUNCHER 1" % PKG)
+sh("adb shell input keyevent KEYCODE_WAKEUP")
+sh("adb shell wm dismiss-keyguard")
+r = sh("adb shell am start -W -n %s/.MainActivity" % PKG)
+print(r.stdout, r.stderr, flush=True)
 time.sleep(15)
 
 # 1. first-install notification permission prompt, tapped through the UI
@@ -70,7 +73,7 @@ if allow is not None:
 # 2. production sign-in render + native update control
 root = dump("prod-ui-2")
 shot("prod-2-signin")
-result("production sign-in page renders", bool(nodes_with(root, "Sign in", "Password", "Zing")))
+result("production sign-in page renders", bool(nodes_with(root, "Sign in")) and bool(nodes_with(root, "Password")))
 fab = nodes_with(root, "Check for updates")
 result("native Check for updates control present", bool(fab))
 
@@ -93,5 +96,7 @@ r = sh("adb shell dumpsys package %s | grep versionCode" % PKG)
 print(r.stdout)
 m = re.search(r"versionCode=(\d+)", r.stdout)
 result("production versionCode recorded", bool(m))
+sh("adb shell logcat -d > qa-out/full-logcat.txt")
+sh("adb shell dumpsys activity activities > qa-out/activities.txt")
 print(open("qa-out/results.txt").read(), flush=True)
 sys.exit(1 if FAILURES else 0)
