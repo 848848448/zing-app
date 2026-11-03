@@ -64,6 +64,7 @@ with open("qa-fixture/index.html", "w") as f:
             '<audio id="audio" src="/tone.wav" controls></audio>'
             '<button id="hpush" onclick="window.__n=(window.__n||0)+1;console.log(\'QAPUSH=\'+window.__n);location.hash=\'#h\'+window.__n">Hash push</button>'
             '<button id="endbtn" onclick="var a=document.getElementById(\'audio2\');a.onended=function(){console.log(\'QAENDED=1\')};a.play()">Play short</button>'
+            '<button id="sharebtn" onclick="if(navigator.share){navigator.share({title:\'QA Fixture Song\',url:\'http://10.0.2.2:8765/share-target\'});}else{console.log(\'QASHARE=missing\')}">Share fixture</button>'
             '<audio id="audio2" src="/short.wav"></audio>'
             '<input id="kbin" placeholder="QA type here">'
             '<script>window.addEventListener(\'hashchange\',function(){console.log(\'QAHASH=\'+location.hash)});window.addEventListener(\'popstate\',function(){console.log(\'QAPOP=\'+location.hash)});window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="toggle"){if(el.paused)el.play();else el.pause();}else if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
@@ -231,6 +232,24 @@ if kbn:
     sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
     result("hardware Back closes keyboard and keeps app open", (not ime_shown()) and focus_is_app())
     shot("qa-1d-after-keyboard-back")
+
+# 1e. native share bridge: the fixture page calls navigator.share, which the
+# app's ZingNative bridge must route to the real Android share sheet.
+sbfix = exact(dump("ui-share"), "Share fixture")
+result("fixture share control present", sbfix is not None)
+if sbfix is not None:
+    tap(sbfix)
+    time.sleep(4)
+    rsh = dump("ui-share-sheet")
+    shot("qa-1e-share-sheet")
+    pks = set((n.get("package") or "") for n in rsh.iter("node")) if rsh is not None else set()
+    allt = " ".join(texts(rsh, 200))
+    sheet_pkgs = bool(pks & {"android", "com.android.intentresolver", "com.google.android.apps.sharesheet"})
+    print("SHARE_FIXTURE pkgs=", sorted(pks), flush=True)
+    result("fixture navigator.share opens the Android share sheet", rsh is not None and PKG not in pks and sheet_pkgs)
+    result("fixture share sheet carries the shared content", ("QA Fixture Song" in allt) or ("8765/share-target" in allt))
+    sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
+    result("app is still open after dismissing the share sheet", focus_is_app())
 
 play = exact(dump("ui-play"), "Play fixture")
 result("fixture play control present", play is not None)
