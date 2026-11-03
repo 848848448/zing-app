@@ -62,7 +62,11 @@ with open("qa-fixture/index.html", "w") as f:
             '<button id="ctest" onclick="console.log(\'QACONFIRM=\'+confirm(\'QA ok?\'))">Confirm test</button>'
             '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
-            '<script>window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="toggle"){if(el.paused)el.play();else el.pause();}else if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
+            '<button id="hpush" onclick="location.hash=\'#h\'+(window.__n=(window.__n||0)+1)">Hash push</button>'
+            '<button id="endbtn" onclick="var a=document.getElementById(\'audio2\');a.onended=function(){console.log(\'QAENDED=1\')};a.play()">Play short</button>'
+            '<audio id="audio2" src="/short.wav"></audio>'
+            '<input id="kbin" placeholder="QA type here">'
+            '<script>window.addEventListener(\'hashchange\',function(){console.log(\'QAHASH=\'+location.hash)});window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="toggle"){if(el.paused)el.play();else el.pause();}else if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
             'document.getElementById("bld").textContent=ZingNative.getAppBuild();}}catch(e){}</script>')
 import base64
 # 256x256 gradient jpeg: exercises the artwork path with real, recognizable art
@@ -74,6 +78,9 @@ with wave.open("qa-fixture/tone.wav", "wb") as w:
     frames = b"".join(struct.pack("<h", int(12000 * math.sin(2 * math.pi * 440 * i / sr)))
                       for i in range(sr * 300))
     w.writeframes(frames)
+with wave.open("qa-fixture/short.wav", "wb") as w:
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+    w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * 330 * i / sr))) for i in range(sr * 3)))
 server = subprocess.Popen([sys.executable, "-m", "http.server", "8765",
                            "--directory", "qa-fixture"],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -189,6 +196,38 @@ def playback_times():
     out = sh("adb shell logcat -d -s ZingQA:I").stdout
     open("qa-out/audio-log.txt", "w").write(out)
     return [float(m.group(1)) for m in re.finditer(r'audio="true\|([0-9.]+)"', out)]
+
+# 1d. Android hardware Back, natural audio end, soft keyboard (fixture page in the app WebView)
+def focus_is_app():
+    return PKG in sh("adb shell dumpsys window | grep mCurrentFocus").stdout
+def ime_shown():
+    return "mInputShown=true" in sh("adb shell dumpsys input_method").stdout
+hp = exact(dump("ui-hist"), "Hash push")
+result("hash push control present", hp is not None)
+if hp is not None:
+    sh("adb logcat -c")
+    tap(hp); time.sleep(1); tap(hp); time.sleep(1)
+    sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
+    hashes = re.findall(r"QAHASH=(\S*)", chromium_log())
+    print("HASHES", hashes, flush=True)
+    result("hardware Back steps back one page in history", hashes[-3:] == ["#h1", "#h2", "#h1"])
+    result("app stays open after hardware Back with history", focus_is_app())
+eb = exact(dump("ui-end"), "Play short")
+result("short audio control present", eb is not None)
+if eb is not None:
+    sh("adb logcat -c")
+    tap(eb); time.sleep(7)
+    result("natural audio end fires ended event in the app WebView", "QAENDED=1" in chromium_log())
+kbn = nodes_with(dump("ui-kb0"), "QA type here")
+result("keyboard test input present", bool(kbn))
+if kbn:
+    tap(kbn[0]); time.sleep(3)
+    shot("qa-1d-keyboard")
+    result("soft keyboard opens for a page input", ime_shown())
+    dump("ui-kb1")
+    sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
+    result("hardware Back closes keyboard and keeps app open", (not ime_shown()) and focus_is_app())
+    shot("qa-1d-after-keyboard-back")
 
 play = exact(dump("ui-play"), "Play fixture")
 result("fixture play control present", play is not None)
