@@ -73,6 +73,9 @@ public class Updater {
                         }
                     }
                 }
+                String notes = j.optString("body", "").trim();
+                if (notes.length() > 1500) notes = notes.substring(0, 1500);
+                final String whatsNew = notes;
                 if (apkUrl == null || build <= currentBuild(a)) {
                     if (manual) toast(a, "Zing is up to date");
                     return;
@@ -83,7 +86,9 @@ public class Updater {
                     if (a.isFinishing()) return;
                     new AlertDialog.Builder(a)
                             .setTitle("Update available")
-                            .setMessage("A new Zing update is ready (" + label + ").\n\nInstall it now?")
+                            .setMessage("A new Zing update is ready (" + label + ")."
+                                    + (whatsNew.isEmpty() ? "" : "\n\nWhat's new:\n" + whatsNew + "\n")
+                                    + "\nInstall it now?")
                             .setPositiveButton("Update", (d, w) -> download(a, url))
                             .setNegativeButton("Later", null)
                             .show();
@@ -163,3 +168,4 @@ public class Updater {
         return out.toString("UTF-8");
     }
 }
+
