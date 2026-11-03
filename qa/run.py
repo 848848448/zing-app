@@ -194,8 +194,19 @@ time.sleep(4)
 shade = dump("notif-shade")
 shot("qa-3b-notification")
 result("notification shows now-playing title", bool(nodes_with(shade, "QA Fixture Song")))
-pausebtn = exact(shade, "Pause") or (nodes_with(shade, "Pause") or [None])[0]
-result("notification Pause action tappable", bool(pausebtn))
+def exact_node(root, word):
+    # exact match on text OR content-desc; Element truthiness is unusable (childless node == falsy)
+    if root is None:
+        return None
+    for n in root.iter("node"):
+        t = (n.get("text") or "").strip().lower()
+        d = (n.get("content-desc") or "").strip().lower()
+        if t == word.lower() or d == word.lower():
+            return n
+    return None
+
+pausebtn = exact_node(shade, "Pause")
+result("notification Pause action tappable", pausebtn is not None)
 
 def audio_states():
     out = sh("adb shell logcat -d -s ZingQA:I").stdout
@@ -212,7 +223,7 @@ def wait_audio_state(want, seen, tries=6):
     return st
 
 try:
-    if pausebtn:
+    if pausebtn is not None:
         pre = len(audio_states())
         tap(pausebtn)
         time.sleep(3)
@@ -226,8 +237,8 @@ try:
         sh("adb shell cmd statusbar expand-notifications")
         time.sleep(4)
         shade2 = dump("notif-shade-2")
-        playbtn = exact(shade2, "Play")
-        result("notification flips to Play when paused", bool(playbtn))
+        playbtn = exact_node(shade2, "Play")
+        result("notification flips to Play when paused", playbtn is not None)
         if not paused_ok or playbtn is None:
             result("notification Play resumes audio", False)
         else:
