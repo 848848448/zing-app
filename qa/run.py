@@ -38,6 +38,15 @@ def exact(root, word):
             return n
     return None
 
+def texts(root, limit=40):
+    out = []
+    if root is not None:
+        for n in root.iter("node"):
+            t = (n.get("text") or n.get("content-desc") or "").strip()
+            if t:
+                out.append(t)
+    return out[:limit]
+
 def tap(node):
     m = re.findall(r"\d+", node.get("bounds"))
     x = (int(m[0]) + int(m[2])) // 2
@@ -371,15 +380,6 @@ def quiet(cmd):
 
 def edits(root):
     return [n for n in root.iter("node") if (n.get("class") or "").endswith("EditText")] if root is not None else []
-
-def texts(root, limit=40):
-    out = []
-    if root is not None:
-        for n in root.iter("node"):
-            t = (n.get("text") or n.get("content-desc") or "").strip()
-            if t:
-                out.append(t)
-    return out[:limit]
 
 def tap_word(word):
     root = dump("tw")
