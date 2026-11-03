@@ -63,9 +63,10 @@ jobs:
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n zingqa -k "system-images;android-34;google_apis;x86_64" --device "pixel_6"
-          nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-audio -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save >/tmp/emulator.log 2>&1 &
-          adb wait-for-device
-          timeout 240 bash -c 'until adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; do sleep 2; done'
+          nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-audio -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save -verbose >/tmp/emulator.log 2>&1 &
+          sleep 5; tail -5 /tmp/emulator.log || true
+          timeout 180 adb wait-for-device || { echo "ADB-WAIT-TIMEOUT"; tail -40 /tmp/emulator.log; exit 1; }
+          timeout 240 bash -c 'until adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; do sleep 2; done' || { echo "BOOT-TIMEOUT"; tail -40 /tmp/emulator.log; exit 1; }
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
