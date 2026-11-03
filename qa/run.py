@@ -58,7 +58,7 @@ with open("qa-fixture/index.html", "w") as f:
             '<body style="background:#0a0a12;color:#fff">fixture'
             "<button onclick=\"document.getElementById('audio').play()\">Play fixture</button>"
             '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
-            '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge check for updates</button>'
+            '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
             '<script>try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
             'document.getElementById("bld").textContent=ZingNative.getAppBuild();}}catch(e){}</script>')
@@ -103,7 +103,7 @@ if allow2 is not None:
 shot("qa-1b-fixture-visible")
 result("floating update control removed", not nodes_with(root, "Check for updates"))
 result("bridge version shown in page", bool(nodes_with(root, "version:", "build")))
-bridge = exact(root, "Bridge check for updates")
+bridge = exact(root, "Bridge update check")
 result("bridge update button present", bridge is not None)
 if bridge is not None:
     tap(bridge)
@@ -111,6 +111,7 @@ if bridge is not None:
     rootd = dump("ui-bridge-dlg")
     shot("qa-1c-bridge-dialog")
     result("bridge triggers native update dialog", bool(nodes_with(rootd, "Update available")))
+    result("update dialog shows What's new notes", bool(nodes_with(rootd, "What's new")))
     laterd = exact(rootd, "Later")
     if laterd is not None:
         tap(laterd)
