@@ -68,7 +68,7 @@ jobs:
           ls -la ~/.android/avd/ || true
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd || true
           [ -f ~/.android/avd/zingqa.ini ] || { echo "AVD-INI-MISSING"; find $HOME -name "zingqa.ini" 2>/dev/null | head -3; exit 1; }
-          nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-audio -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save -verbose >/tmp/emulator.log 2>&1 &
+          nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save -verbose >/tmp/emulator.log 2>&1 &
           sleep 5; tail -5 /tmp/emulator.log || true
           timeout 180 adb wait-for-device || { echo "ADB-WAIT-TIMEOUT"; tail -40 /tmp/emulator.log; exit 1; }
           timeout 240 bash -c 'until adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; do sleep 2; done' || { echo "BOOT-TIMEOUT"; tail -40 /tmp/emulator.log; exit 1; }
