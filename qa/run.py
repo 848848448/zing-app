@@ -208,7 +208,7 @@ if hp is not None:
     sh("adb logcat -c")
     tap(hp); time.sleep(1); tap(hp); time.sleep(1)
     sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
-    hashes = re.findall(r"QAHASH=(\S*)", chromium_log())
+    hashes = re.findall(r"QAHASH=([^\"\s]*)", chromium_log())
     print("HASHES", hashes, "PUSH", re.findall(r"QAPUSH=(\\S*)", chromium_log()), "POP", re.findall(r"QAPOP=(\\S*)", chromium_log()), flush=True)
     open("qa-out/chromium-hist.txt", "w").write(chromium_log())
     result("hardware Back steps back one page in history", hashes[-3:] == ["#h1", "#h2", "#h1"])
