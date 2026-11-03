@@ -100,6 +100,18 @@ if allow2 is not None:
     tap(allow2)
     time.sleep(2)
     root = dump("ui-1d")
+# The auto update dialog can race the fixture checks; dismiss modals first.
+for attempt in range(6):
+    root = dump("ui-fixture")
+    if nodes_with(root, "Update available"):
+        laterx = exact(root, "Later")
+        if laterx is not None:
+            tap(laterx)
+            time.sleep(2)
+            continue
+    if exact(root, "Bridge update check") is not None:
+        break
+    time.sleep(2)
 shot("qa-1b-fixture-visible")
 result("floating update control removed", not nodes_with(root, "Check for updates"))
 result("bridge version shown in page", bool(nodes_with(root, "version:", "build")))
