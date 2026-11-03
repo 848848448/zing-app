@@ -380,12 +380,20 @@ if PW:
     if len(ed) >= 2:
         tap(ed[0]); time.sleep(1)
         quiet("adb shell input text '%s'" % QA_USER)
-        tap(ed[1]); time.sleep(1)
+        quiet("adb shell input keyevent KEYCODE_TAB"); time.sleep(1)
+        # verify the focus is on the password field before typing the secret
+        rchk = dump("live-0b")
+        focused = [n for n in edits(rchk) if n.get("focused") == "true"]
+        if not (focused and focused[0].get("password") == "true"):
+            result("live sign-in: password field focused before typing", False)
+            raise SystemExit("password field not focused; refusing to type secret")
         quiet("adb shell input text '%s'" % PW)
         sh("adb shell input keyevent KEYCODE_BACK")
         time.sleep(2)
-        shot("live-1-filled")
-        root = dump("live-1")
+        root = dump("live-1")  # no screenshot or dump artifact of typed fields is kept
+        for f in ("live-0b", "live-1"):
+            try: os.remove("qa-out/%s.xml" % f)
+            except OSError: pass
         if not tap_word("Sign in"):
             print("no Sign in button found", flush=True)
         time.sleep(12)
