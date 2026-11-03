@@ -42,6 +42,7 @@ jobs:
         with:
           tag_name: v1.0-b2
           name: Zing v1.0-b2 (QA fixture - temporary)
+          body: "QA notes marker: the update dialog must show this What is new body."
           prerelease: true
           files: qa-b2.apk
       - name: Enable KVM (GitHub-hosted Linux runner)
@@ -91,3 +92,4 @@ jobs:
         with:
           name: qa-output
           path: qa-out/
+
