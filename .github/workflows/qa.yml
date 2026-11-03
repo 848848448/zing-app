@@ -44,6 +44,12 @@ jobs:
           name: Zing v1.0-b2 (QA fixture - temporary)
           prerelease: true
           files: qa-b2.apk
+      - name: Enable KVM (GitHub-hosted Linux runner)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
       - name: Emulator QA
         uses: reactivecircus/android-emulator-runner@v2
         with:
