@@ -57,7 +57,11 @@ with open("qa-fixture/index.html", "w") as f:
     f.write('<!doctype html><title>Zing QA fixture</title>'
             '<body style="background:#0a0a12;color:#fff">fixture'
             "<button onclick=\"document.getElementById('audio').play()\">Play fixture</button>"
-            '<audio id="audio" src="/tone.wav" controls></audio>')
+            '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
+            '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge check for updates</button>'
+            '<audio id="audio" src="/tone.wav" controls></audio>'
+            '<script>try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
+            'document.getElementById("bld").textContent=ZingNative.getAppBuild();}}catch(e){}</script>')
 sr = 8000
 with wave.open("qa-fixture/tone.wav", "wb") as w:
     w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
@@ -97,7 +101,20 @@ if allow2 is not None:
     time.sleep(2)
     root = dump("ui-1d")
 shot("qa-1b-fixture-visible")
-result("update control present", bool(nodes_with(root, "Check for updates")))
+result("floating update control removed", not nodes_with(root, "Check for updates"))
+result("bridge version shown in page", bool(nodes_with(root, "version:", "build")))
+bridge = exact(root, "Bridge check for updates")
+result("bridge update button present", bridge is not None)
+if bridge is not None:
+    tap(bridge)
+    time.sleep(8)
+    rootd = dump("ui-bridge-dlg")
+    shot("qa-1c-bridge-dialog")
+    result("bridge triggers native update dialog", bool(nodes_with(rootd, "Update available")))
+    laterd = exact(rootd, "Later")
+    if laterd is not None:
+        tap(laterd)
+        time.sleep(2)
 
 def playback_times():
     out = sh("adb shell logcat -d -s ZingQA:I").stdout
@@ -166,10 +183,9 @@ if allowsrc:
     time.sleep(3)
     sh("adb shell input keyevent KEYCODE_BACK")
     time.sleep(6)
-    fab = nodes_with(dump("ui-6b"), "Check for updates")
-    if fab:
-        tap(fab[0])
-        time.sleep(6)
+    sh("adb shell am force-stop %s" % PKG)
+    sh("adb shell am start -W -n %s/.MainActivity" % PKG)
+    time.sleep(15)
     root6b = dump("ui-6c")
     upd2 = exact(root6b, "Update")
     if upd2 is not None:
@@ -192,3 +208,4 @@ shot("qa-7-updated")
 server.terminate()
 print(open("qa-out/results.txt").read(), flush=True)
 sys.exit(1 if FAILURES else 0)
+
