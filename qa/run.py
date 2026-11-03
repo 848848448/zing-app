@@ -35,8 +35,12 @@ def tap(node):
     y = (int(m[1]) + int(m[3])) // 2
     sh("adb shell input tap %d %d" % (x, y))
 
+FAILURES = []
+
 def result(name, ok):
     print(("PASS " if ok else "FAIL ") + name, flush=True)
+    if not ok:
+        FAILURES.append(name)
     with open("qa-out/results.txt", "a") as f:
         f.write(("PASS " if ok else "FAIL ") + name + "\n")
 
@@ -61,6 +65,8 @@ sh("adb logcat -c")
 
 # 1. install b1 + launch with the fixture URL (QA mode)
 r = sh("adb install -r qa-b1.apk"); result("install b1", "Success" in r.stdout)
+sh("adb shell pm grant %s android.permission.POST_NOTIFICATIONS" % PKG)
+sh("adb shell appops set %s REQUEST_INSTALL_PACKAGES allow" % PKG)
 sh("adb shell am start -n %s/.MainActivity --es qa_url http://10.0.2.2:8765/" % PKG)
 time.sleep(20)
 shot("qa-1-launched")
@@ -107,7 +113,20 @@ upd = [n for n in upd if "check for updates" not in ((n.get("content-desc") or "
 if upd:
     tap(upd[0])
 time.sleep(30)
-inst = nodes_with(dump("ui-6"), "Install")
+root6 = dump("ui-6")
+allow = nodes_with(root6, "Allow from this source")
+if allow:
+    tap(allow[0])
+    time.sleep(3)
+    sh("adb shell input keyevent KEYCODE_BACK")
+    time.sleep(8)
+    upd2 = nodes_with(dump("ui-6b"), "Update")
+    upd2 = [n for n in upd2 if "check for updates" not in ((n.get("content-desc") or "").lower())]
+    if upd2:
+        tap(upd2[0])
+    time.sleep(25)
+    root6 = dump("ui-6c")
+inst = nodes_with(root6, "Install")
 if inst:
     tap(inst[0])
     time.sleep(20)
@@ -119,3 +138,5 @@ result("b2 installed via in-app updater", "versionCode=2" in r.stdout)
 shot("qa-5-updated")
 
 server.terminate()
+print(open("qa-out/results.txt").read(), flush=True)
+sys.exit(1 if FAILURES else 0)
