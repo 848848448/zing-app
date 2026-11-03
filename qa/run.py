@@ -54,7 +54,7 @@ def result(name, ok):
 # --- local audio fixture: a page with a looping tone, no site credentials ---
 os.makedirs("qa-fixture", exist_ok=True)
 with open("qa-fixture/index.html", "w") as f:
-    f.write('<!doctype html><title>Zing QA fixture</title>'
+    f.write('<!doctype html><title>Zing QA fixture</title><meta name="viewport" content="width=device-width,initial-scale=1">'
             '<body style="background:#0a0a12;color:#fff">fixture'
             "<button onclick=\"document.getElementById('audio').play();if(window.ZingNative&&ZingNative.updateNowPlaying)ZingNative.updateNowPlaying('QA Fixture Song','QA Artist','http://10.0.2.2:8765/cover.jpg');\">Play fixture</button>"
             '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
@@ -62,11 +62,11 @@ with open("qa-fixture/index.html", "w") as f:
             '<button id="ctest" onclick="console.log(\'QACONFIRM=\'+confirm(\'QA ok?\'))">Confirm test</button>'
             '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
-            '<button id="hpush" onclick="location.hash=\'#h\'+(window.__n=(window.__n||0)+1)">Hash push</button>'
+            '<button id="hpush" onclick="window.__n=(window.__n||0)+1;console.log(\'QAPUSH=\'+window.__n);location.hash=\'#h\'+window.__n">Hash push</button>'
             '<button id="endbtn" onclick="var a=document.getElementById(\'audio2\');a.onended=function(){console.log(\'QAENDED=1\')};a.play()">Play short</button>'
             '<audio id="audio2" src="/short.wav"></audio>'
             '<input id="kbin" placeholder="QA type here">'
-            '<script>window.addEventListener(\'hashchange\',function(){console.log(\'QAHASH=\'+location.hash)});window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="toggle"){if(el.paused)el.play();else el.pause();}else if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
+            '<script>window.addEventListener(\'hashchange\',function(){console.log(\'QAHASH=\'+location.hash)});window.addEventListener(\'popstate\',function(){console.log(\'QAPOP=\'+location.hash)});window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="toggle"){if(el.paused)el.play();else el.pause();}else if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
             'document.getElementById("bld").textContent=ZingNative.getAppBuild();}}catch(e){}</script>')
 import base64
 # 256x256 gradient jpeg: exercises the artwork path with real, recognizable art
@@ -209,7 +209,8 @@ if hp is not None:
     tap(hp); time.sleep(1); tap(hp); time.sleep(1)
     sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
     hashes = re.findall(r"QAHASH=(\S*)", chromium_log())
-    print("HASHES", hashes, flush=True)
+    print("HASHES", hashes, "PUSH", re.findall(r"QAPUSH=(\\S*)", chromium_log()), "POP", re.findall(r"QAPOP=(\\S*)", chromium_log()), flush=True)
+    open("qa-out/chromium-hist.txt", "w").write(chromium_log())
     result("hardware Back steps back one page in history", hashes[-3:] == ["#h1", "#h2", "#h1"])
     result("app stays open after hardware Back with history", focus_is_app())
 eb = exact(dump("ui-end"), "Play short")
@@ -218,7 +219,8 @@ if eb is not None:
     sh("adb logcat -c")
     tap(eb); time.sleep(7)
     result("natural audio end fires ended event in the app WebView", "QAENDED=1" in chromium_log())
-kbn = nodes_with(dump("ui-kb0"), "QA type here")
+kbroot = dump("ui-kb0")
+kbn = [n for n in kbroot.iter("node") if n.get("resource-id") == "kbin"] if kbroot is not None else []
 result("keyboard test input present", bool(kbn))
 if kbn:
     tap(kbn[0]); time.sleep(3)
