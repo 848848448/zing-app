@@ -61,6 +61,8 @@ jobs:
           done
           ls "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/" | head -5
       - name: Boot emulator and run QA
+        env:
+          ZING_QA_PASSWORD: ${{ secrets.ZING_QA_PASSWORD }}
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           export ANDROID_AVD_HOME="$HOME/.android/avd"
