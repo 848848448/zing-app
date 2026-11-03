@@ -21,10 +21,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
-import android.graphics.drawable.GradientDrawable;
-import android.view.Gravity;
-import android.view.MotionEvent;
 
 public class MainActivity extends Activity {
     static final String SITE = "https://yidpluszingdownload.abdeveloping.workers.dev/";
@@ -34,9 +30,7 @@ public class MainActivity extends Activity {
     private WebChromeClient.CustomViewCallback customCallback;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean playing = false;
-    private ImageView updateFab;
     private boolean qaMode = false;
-    private final Runnable fabFader = this::fadeFab;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,8 +39,6 @@ public class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.addView(web, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        updateFab = buildUpdateFab();
-        root.addView(updateFab);
         setContentView(root);
 
         WebSettings s = web.getSettings();
@@ -124,36 +116,6 @@ public class MainActivity extends Activity {
 
         Updater.check(this, false);
         handler.postDelayed(audioPoller, 3000);
-        handler.postDelayed(fabFader, 5000);
-    }
-
-    private ImageView buildUpdateFab() {
-        float d = getResources().getDisplayMetrics().density;
-        ImageView fab = new ImageView(this);
-        fab.setImageResource(R.drawable.ic_refresh);
-        GradientDrawable circle = new GradientDrawable();
-        circle.setShape(GradientDrawable.OVAL);
-        circle.setColors(new int[]{0xFF7C5CFF, 0xFFFF4D8D});
-        circle.setOrientation(GradientDrawable.Orientation.TL_BR);
-        fab.setBackground(circle);
-        int pad = (int) (12 * d);
-        fab.setPadding(pad, pad, pad, pad);
-        int size = (int) (52 * d);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size, Gravity.END | Gravity.BOTTOM);
-        lp.rightMargin = (int) (16 * d);
-        lp.bottomMargin = (int) (150 * d);
-        fab.setLayoutParams(lp);
-        fab.setElevation(8 * d);
-        fab.setContentDescription("Check for updates");
-        fab.setOnClickListener(v -> {
-            fab.animate().alpha(1f).setDuration(150).start();
-            Updater.check(this, true);
-        });
-        return fab;
-    }
-
-    private void fadeFab() {
-        if (updateFab != null) updateFab.animate().alpha(0.35f).setDuration(600).start();
     }
 
     private final Runnable audioPoller = new Runnable() {
@@ -177,18 +139,6 @@ public class MainActivity extends Activity {
     };
 
     @Override
-    public boolean dispatchTouchEvent(MotionEvent ev) {
-        if (ev.getAction() == MotionEvent.ACTION_DOWN && updateFab != null && updateFab.getAlpha() < 0.9f) {
-            updateFab.animate().alpha(0.85f).setDuration(200).start();
-        }
-        if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-            handler.removeCallbacks(fabFader);
-            handler.postDelayed(fabFader, 5000);
-        }
-        return super.dispatchTouchEvent(ev);
-    }
-
-    @Override
     public void onBackPressed() {
         if (customView != null) {
             WebView w = web;
@@ -207,3 +157,4 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 }
+
