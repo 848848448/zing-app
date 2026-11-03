@@ -1,5 +1,6 @@
 What's new in this update:
 
-- Pictures and cover art load again on every phone - they now come through Zing itself instead of an outside address.
-- Settings, playlists, equalizer and every panel now open properly on older Android phones.
-- The floating update circle is gone. Updates live in Settings > App updates: see your version, tap "Check for updates", and read what's new before installing.
+- A real music notification: song name, artist and cover art, with Play/Pause, Next and Previous buttons - control the music from the notification shade like every music app.
+- The launcher icon is fixed - the note is no longer cut off.
+- The big player cover shows properly on older phones, panels no longer let the page bleed through, the yellow tap outline is gone, and the mix cards are slimmer.
+- The app returns you to the exact same place after Back and after a refresh.
