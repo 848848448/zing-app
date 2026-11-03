@@ -56,12 +56,12 @@ os.makedirs("qa-fixture", exist_ok=True)
 with open("qa-fixture/index.html", "w") as f:
     f.write('<!doctype html><title>Zing QA fixture</title>'
             '<body style="background:#0a0a12;color:#fff">fixture'
-            '<audio id="audio" src="/tone.wav" loop autoplay></audio>')
+            '<audio id="audio" src="/tone.wav" autoplay></audio>')
 sr = 8000
 with wave.open("qa-fixture/tone.wav", "wb") as w:
     w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
     frames = b"".join(struct.pack("<h", int(12000 * math.sin(2 * math.pi * 440 * i / sr)))
-                      for i in range(sr * 30))
+                      for i in range(sr * 300))
     w.writeframes(frames)
 server = subprocess.Popen([sys.executable, "-m", "http.server", "8765",
                            "--directory", "qa-fixture"],
@@ -84,10 +84,23 @@ if allow is not None:
     tap(allow)
     time.sleep(3)
     root = dump("ui-1b")
+later = exact(root, "Later")
+if later is not None:
+    tap(later)
+    time.sleep(2)
+    root = dump("ui-1c")
+# Permission and update dialogs can arrive in either order.
+allow2 = exact(root, "Allow")
+if allow2 is not None:
+    tap(allow2)
+    time.sleep(2)
+    root = dump("ui-1d")
+shot("qa-1b-fixture-visible")
 result("update control present", bool(nodes_with(root, "Check for updates")))
 
 def playback_times():
     out = sh("adb shell logcat -d -s ZingQA:I").stdout
+    open("qa-out/audio-log.txt", "w").write(out)
     return [float(m.group(1)) for m in re.finditer(r'audio="true\|([0-9.]+)"', out)]
 
 # 2. fixture audio plays and advances in the foreground
@@ -104,8 +117,10 @@ t2 = playback_times()
 shot("qa-3-backgrounded-home")
 sh("adb shell dumpsys notification > qa-out/notif.txt")
 notif = open("qa-out/notif.txt").read()
-result("playback notification while backgrounded", "Zing" in notif)
-result("playback advanced across backgrounding", bool(t2) and t2[-1] > last1)
+result("playback notification while backgrounded", "pkg=com.zingmusic.app" in notif and "channel=playback" in notif)
+print("FOREGROUND_TIMES", t1, "BACKGROUND_TIMES", t2, flush=True)
+result("playback advanced across backgrounding", bool(t1) and bool(t2) and t2[-1] > last1 + 5)
+sh("adb shell logcat -d > qa-out/full-logcat.txt")
 
 # 4. production site renders its sign-in page (no credentials used)
 sh("adb shell am force-stop %s" % PKG)
@@ -130,6 +145,7 @@ if upd is not None:
 time.sleep(25)
 root6 = dump("ui-6")
 allowsrc = nodes_with(root6, "Allow from this source")
+result("unknown-source consent screen shown", bool(allowsrc))
 if allowsrc:
     shot("qa-6-unknown-sources")
     tap(allowsrc[0])
