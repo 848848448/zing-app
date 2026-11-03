@@ -45,7 +45,7 @@ public class Updater {
                 // QA builds also see prereleases (temporary update-test fixtures);
                 // release builds only ever see the production latest release.
                 String api = QaFlags.QA_ENABLED
-                        ? "https://api.github.com/repos/" + REPO + "/releases?per_page=1"
+                        ? "https://api.github.com/repos/" + REPO + "/releases/tags/v1.0-b2"
                         : "https://api.github.com/repos/" + REPO + "/releases/latest";
                 HttpURLConnection c = (HttpURLConnection) new URL(api).openConnection();
                 c.setRequestProperty("Accept", "application/vnd.github+json");
