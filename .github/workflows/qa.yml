@@ -87,19 +87,6 @@ jobs:
         run: gh release delete v1.0-b2 --yes --cleanup-tag || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish QA evidence screenshots
-        if: always()
-        run: |
-          git clone --depth 1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" qe
-          cd qe
-          git checkout -B qa-evidence
-          rm -rf evidence && mkdir evidence
-          cp ../qa-out/*.png evidence/ 2>/dev/null || true
-          git config user.email "actions@github.com"
-          git config user.name "github-actions"
-          git add -A
-          git commit -m "QA evidence run ${{ github.run_number }}" || true
-          git push -f origin qa-evidence || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
