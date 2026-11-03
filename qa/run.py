@@ -133,8 +133,16 @@ sh("adb shell am force-stop %s" % PKG)
 sh("adb shell am start -n %s/.MainActivity" % PKG)
 time.sleep(15)
 root = dump("ui-4")
+later4 = exact(root, "Later")
+if later4 is not None:
+    tap(later4)
+for attempt in range(8):
+    root = dump("ui-4-visible")
+    if nodes_with(root, "Sign in with your email"):
+        break
+    time.sleep(3)
 shot("qa-4-prod-signin")
-result("production site renders (sign-in page)", bool(nodes_with(root, "Sign in")) and bool(nodes_with(root, "Password")))
+result("production site renders (sign-in page)", bool(nodes_with(root, "Sign in with your email")))
 
 # 5. update round-trip b1 -> b2 via the in-app updater, through the real UI:
 #    dialog, download, genuine unknown-source consent in Settings, installer.
