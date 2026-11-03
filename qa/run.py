@@ -172,7 +172,8 @@ for label, btn, tag, okword in (("prompt", "Prompt test", "QAPROMPT=", "OK"), ("
     print("DIALOG", label, "shown=", shown, "result=", m.group(1) if m else None, flush=True)
     result("%s returns a usable value after OK" % label, bool(m) and m.group(1) not in ("null", "false"))
 result("floating update control removed", not nodes_with(root, "Check for updates"))
-result("bridge version shown in page", bool(nodes_with(root, "version:", "build")))
+vn = [n for n in root.iter("node") if n.get("resource-id") == "ver"] if root is not None else []
+result("bridge reports a real app version (not the '?' placeholder)", bool(vn) and (vn[0].get("text") or "").strip() not in ("", "?") and "1.0" in (vn[0].get("text") or ""))
 bridge = exact(root, "Bridge update check")
 result("bridge update button present", bridge is not None)
 if bridge is not None:
@@ -181,7 +182,7 @@ if bridge is not None:
     rootd = dump("ui-bridge-dlg")
     shot("qa-1c-bridge-dialog")
     result("bridge triggers native update dialog", bool(nodes_with(rootd, "Update available")))
-    result("update dialog shows What's new notes", bool(nodes_with(rootd, "What's new")))
+    result("update dialog shows the release-notes body", bool(nodes_with(rootd, "QA notes marker")))
     laterd = exact(rootd, "Later")
     if laterd is not None:
         tap(laterd)
@@ -253,7 +254,8 @@ notif = open("qa-out/notif.txt").read()
 result("playback notification while backgrounded", "pkg=com.zingmusic.app" in notif and "channel=playback" in notif)
 print("NOTIF-DUMP-BEGIN"); print(notif[:4000]); print("NOTIF-DUMP-END", flush=True)
 # title asserted from the expanded shade below (dumpsys redacts values)
-result("notification has media actions", "Pause" in notif or "Play" in notif)
+am = re.search(r"channel=playback[^\n]*?actions=(\d+)", notif)
+result("notification has media actions (actions>=2)", bool(am) and int(am.group(1)) >= 2)
 # Bring the app back to the foreground so the media receiver can drive the page,
 # then tap the REAL notification Pause action and confirm playback pauses.
 sh("adb shell am start -n %s/.MainActivity --es qa_url http://10.0.2.2:8765/" % PKG)
@@ -371,6 +373,43 @@ def tap_word(word):
         return True
     return False
 
+
+def label_node(root, word):
+    """node whose text equals word, or ends with ' '+word (icon-name prefix such as 'favorite Library')"""
+    if root is None:
+        return None
+    w = word.lower()
+    for n in root.iter("node"):
+        t = (n.get("text") or "").strip().lower()
+        if t == w or t.endswith(" " + w):
+            return n
+    return None
+
+def page_has_heading(root, name):
+    """a page TextView (not the bottom-tab Button) carries the heading; Home and Search have their own markers"""
+    if root is None:
+        return False
+    want = {"Home": "Made from your music", "Search": None}.get(name, name)
+    for n in root.iter("node"):
+        cls = (n.get("class") or "")
+        t = (n.get("text") or "").strip()
+        if name == "Search" and cls.endswith("EditText"):
+            return True
+        if want and cls.endswith("TextView") and t == want:
+            return True
+    return False
+
+def tap_label(word):
+    n = label_node(dump("tw"), word)
+    if n is None:
+        return False
+    tap(n)
+    return True
+
+def media_states(ms):
+    # Android 14 prints state=PLAYING(3); older prints state=3
+    return re.findall(r"state=(?:[A-Z_]+\()?(\d+)\)?", ms)
+
 PW = os.environ.get("ZING_QA_PASSWORD", "")
 QA_USER = "zing-qa@zing-qa.invalid"
 if PW:
@@ -410,39 +449,47 @@ if PW:
             time.sleep(3)
         shot("live-2-after-signin")
         print("LIVE_TEXTS", texts(root), flush=True)
-        tabs_ok = all(exact(root, w) is not None for w in ["Home", "Albums", "Search", "Genres", "Playlists", "Library", "Artists"])
+        tabs_ok = all(label_node(root, w) is not None for w in ["Home", "Albums", "Search", "Genres", "Playlists", "Library", "Artists"])
         result("live signed-in: all 7 bottom tabs visible", tabs_ok)
         body = " ".join(texts(root, 80))
         result("live signed-in: no time-of-day greeting", not re.search(r"Good (morning|afternoon|evening|night)", body))
         result("live signed-in: Made from your music shown", "Made from your music" in body)
         for name in ["Albums", "Genres", "Playlists", "Artists", "Library", "Search", "Home"]:
-            ok = tap_word(name)
+            ok = tap_label(name)
             time.sleep(4)
             r2 = dump("live-tab-" + name)
             shot("live-tab-" + name)
-            result("live tab opens: " + name, ok and bool(nodes_with(r2, name)))
+            result("live tab opens: " + name, ok and page_has_heading(r2, name))
             print("LIVE_TAB", name, texts(r2, 25), flush=True)
-        # playlist name sheet with the soft keyboard
-        tap_word("Playlists"); time.sleep(3)
+        # playlist name sheet with the soft keyboard: the control is "+ New playlist" on Library
+        tap_label("Library"); time.sleep(3)
         r3 = dump("live-pl-0")
-        newb = nodes_with(r3, "New playlist", "Create playlist", "Create", "New")
-        if newb:
-            tap(newb[0]); time.sleep(3)
+        n3 = exact(r3, "+ New playlist")
+        if n3 is not None:
+            tap(n3); time.sleep(3)
             r4 = dump("live-pl-1"); shot("live-pl-sheet")
             e4 = edits(r4)
             result("live playlist name sheet opens with a text field", bool(e4))
             if e4:
                 tap(e4[0]); time.sleep(2)
+                result("live playlist sheet: soft keyboard shown", ime_shown())
                 quiet("adb shell input text 'QA_list'")
                 time.sleep(1)
                 shot("live-pl-typed")
                 result("live playlist name field accepted typing", bool(nodes_with(dump("live-pl-2"), "QA_list")))
-            sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(1)
-            sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
+                sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(1)  # closes the keyboard only
+                okb = exact(dump("live-pl-3"), "Create")
+                if okb is not None:
+                    tap(okb); time.sleep(3)
+                    rpl = dump("live-pl-4"); shot("live-pl-created")
+                    result("live playlist is created and opens with its name", any((n.get("class") or "").endswith("TextView") and "QA_list" in (n.get("text") or "") for n in rpl.iter("node")))
+                else:
+                    result("live playlist Create button found", False)
         else:
+            result("live Library has + New playlist", False)
             print("LIVE_PL no create control found", texts(r3, 40), flush=True)
         # real catalog search + playback
-        tap_word("Search"); time.sleep(3)
+        tap_label("Search"); time.sleep(3)
         r5 = dump("live-s-0"); e5 = edits(r5)
         if e5:
             tap(e5[0]); time.sleep(1)
@@ -451,7 +498,7 @@ if PW:
             sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(1)
             r6 = dump("live-s-1"); shot("live-s-results")
             print("LIVE_SEARCH", texts(r6, 40), flush=True)
-            hit = nodes_with(r6, "Simcha Bit") or nodes_with(r6, "Simcha")
+            hit = [n for n in nodes_with(r6, "Simcha") if (n.get("class") or "").endswith("TextView")]
             result("live search returns results", bool(hit))
             if hit:
                 tap(hit[0]); time.sleep(8)
@@ -460,19 +507,76 @@ if PW:
                 pl = nodes_with(r7, "Play all") or nodes_with(r7, "Play")
                 if pl:
                     tap(pl[0]); time.sleep(15)
-                ms = sh("adb shell dumpsys media_session").stdout
-                st = re.findall(r"state=PlaybackState \{state=(\d+)", ms)
-                print("LIVE_MEDIA_STATES", st, flush=True)
-                result("live real catalog track is playing (media session state 3)", "3" in st)
+                def zing_pos():
+                    ms = sh("adb shell dumpsys media_session").stdout
+                    i = ms.find("com.zingmusic.app")
+                    seg = ms[i:i+3000] if i >= 0 else ""
+                    m = re.search(r"state=(?:[A-Z_]+\()?(\d+)\)?, position=(\d+)", seg)
+                    return (int(m.group(1)), int(m.group(2))) if m else (None, None)
+                s1 = zing_pos(); time.sleep(6); s2 = zing_pos()
+                print("LIVE_MEDIA", s1, s2, flush=True)
+                result("live real catalog track is playing and its position advances", s1[0] == 3 and s2[0] == 3 and s1[1] is not None and s2[1] > s1[1])
                 shot("live-playing")
-                nt = sh("adb shell dumpsys notification --noredact | grep -i -c 'com.zingmusic.app'").stdout.strip()
-                result("live playback shows a notification", nt not in ("", "0"))
-        # share
-        tap_word("Share"); time.sleep(4)
-        shot("live-share")
-        rs = dump("live-share")
-        print("LIVE_SHARE", texts(rs, 20), flush=True)
-        result("live Share opens the Android share sheet", bool(nodes_with(rs, "Share", "Copy", "Messages", "Nearby")) and rs is not None and PKG not in " ".join((n.get("package") or "") for n in rs.iter("node")))
+                sh("adb shell dumpsys notification --noredact > qa-out/live-notif.txt")
+                ln = open("qa-out/live-notif.txt").read()
+                lm = re.search(r"pkg=com.zingmusic.app[^\n]*channel=playback[^\n]*?actions=(\d+)", ln)
+                result("live playback shows a media notification with actions", bool(lm) and int(lm.group(1)) >= 2)
+                # lock screen (emulator only): screen off, wake, media controls should show the title
+                sh("adb shell input keyevent KEYCODE_POWER"); time.sleep(3)
+                sh("adb shell input keyevent KEYCODE_WAKEUP"); time.sleep(4)
+                rl = dump("live-lock"); shot("live-lock")
+                kg = "isStatusBarKeyguard=true" in sh("adb shell dumpsys window").stdout or "mShowingLockscreen=true" in sh("adb shell dumpsys window").stdout
+                result("EMULATOR lock screen is showing", kg)
+                result("EMULATOR lock screen shows Zing playback controls", bool(nodes_with(rl, "Zing", "Pause")) and kg)
+                sh("adb shell input keyevent KEYCODE_MENU"); sh("adb shell input swipe 540 1800 540 600"); time.sleep(2)
+                sh("adb shell am start -n %s/.MainActivity" % PKG); time.sleep(4)
+        # share: classify what a user actually gets. The app has no native share bridge, so inside the
+        # WebView navigator.share may be absent and the page falls back to copy-link (toast or prompt).
+        SHARE_PKGS = ("android", "com.android.intentresolver", "com.google.android.apps.sharesheet")
+        def classify_share(tag, expect_hash):
+            time.sleep(1)
+            rr = dump("live-share-" + tag); shot("live-share-" + tag)
+            allt = " ".join(texts(rr, 200))
+            pk = set((n.get("package") or "") for n in rr.iter("node")) if rr is not None else set()
+            sheet = rr is not None and any(p in SHARE_PKGS for p in pk) and PKG not in pk
+            has_link = "yidpluszingdownload" in allt or (expect_hash and expect_hash in allt)
+            if sheet:
+                kind = "ANDROID_SHARESHEET"
+            elif "Copy this link" in allt:
+                kind = "PAGE_PROMPT_COPY_LINK"
+            elif "Link copied" in allt:
+                kind = "TOAST_LINK_COPIED"
+            else:
+                kind = "NONE_OBSERVED"
+            print("SHARE_OUTCOME", tag, kind, "link_in_ui=", has_link, "pkgs=", sorted(pk), flush=True)
+            return kind, has_link
+        # album page: Albums tab, open the first album row, tap "Share album"
+        tap_label("Albums"); time.sleep(3)
+        ra = dump("live-alb-0"); tt = [n for n in ra.iter("node") if (n.get("class") or "").endswith("TextView")]
+        rows = [tt[i+1] for i in range(len(tt)-1) if (tt[i].get("text") or "") == "play_arrow"]
+        if rows:
+            tap(rows[0]); time.sleep(5)
+            rb = dump("live-alb-1")
+            sa = exact(rb, "Share album")
+            result("live album page has Share album", sa is not None)
+            if sa is not None:
+                tap(sa)
+                kind, has_link = classify_share("album", "#")
+                result("live Share album opens an Android share sheet", kind == "ANDROID_SHARESHEET")
+                result("live Share album outcome is observable (sheet, copy prompt or copied toast)", kind != "NONE_OBSERVED")
+                sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
+        else:
+            result("live Albums list has an album row", False)
+        # Settings has a page-level "Share"
+        sb = [n for n in nodes_with(dump("live-set0"), "settings") if (n.get("class") or "").endswith("Button")]
+        if sb:
+            tap(sb[0]); time.sleep(3)
+        shn = exact(dump("live-set1"), "Share")
+        result("live Settings has Share control", shn is not None)
+        if shn is not None:
+            tap(shn)
+            kind, has_link = classify_share("settings", None)
+            result("live Settings Share outcome is observable", kind != "NONE_OBSERVED")
         sh("adb shell input keyevent KEYCODE_BACK")
 else:
     print("ZING_QA_PASSWORD not set; skipping live signed-in route", flush=True)
