@@ -73,6 +73,20 @@ public class MainActivity extends Activity {
             public void updateNowPlaying(String title, String artist, String cover) {
                 PlaybackService.updateNowPlaying(MainActivity.this, title, artist, cover);
             }
+            @android.webkit.JavascriptInterface
+            public void share(String title, String url) {
+                MainActivity.this.runOnUiThread(() -> {
+                    try {
+                        String t = title == null ? "" : title;
+                        String u = url == null ? "" : url;
+                        Intent send = new Intent(Intent.ACTION_SEND);
+                        send.setType("text/plain");
+                        if (!t.isEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, t);
+                        send.putExtra(Intent.EXTRA_TEXT, u.isEmpty() ? t : (t + "\n" + u));
+                        startActivity(Intent.createChooser(send, null));
+                    } catch (Exception ignored) {}
+                });
+            }
         }, "ZingNative");
 
         {
@@ -88,6 +102,18 @@ public class MainActivity extends Activity {
                 if (u != null && HOST.equals(u.getHost())) return false;
                 try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) {}
                 return true;
+            }
+
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                // Give pages a real navigator.share backed by the Android share
+                // sheet. Sites with their own fallback (copy link) are
+                // untouched when this bridge is absent.
+                v.evaluateJavascript(
+                        "if(window.ZingNative&&ZingNative.share&&!navigator.share){"
+                        + "navigator.share=function(d){d=d||{};"
+                        + "ZingNative.share(String(d.title||document.title),String(d.url||location.href));"
+                        + "return Promise.resolve();};}", null);
             }
         });
 
