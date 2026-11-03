@@ -1,7 +1,7 @@
 name: build
 on:
-  push:
-    branches: [main]
+  # push trigger re-enabled after QA infra is verified (keeps pushes from
+  # publishing unplanned releases during QA/fixture runs)
   workflow_dispatch:
 
 permissions:
