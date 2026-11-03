@@ -2,8 +2,10 @@ package com.zingmusic.app;
 
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -31,6 +33,15 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean playing = false;
     private boolean qaMode = false;
+    private final BroadcastReceiver mediaReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            final String a = i == null ? null : i.getStringExtra("action");
+            if (a == null || web == null) return;
+            web.post(() -> web.evaluateJavascript(
+                    "window.zingMediaAction&&window.zingMediaAction('" + a + "')", null));
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,7 +69,17 @@ public class MainActivity extends Activity {
             public int getAppBuild() { return Updater.currentBuild(MainActivity.this); }
             @android.webkit.JavascriptInterface
             public String getAppVersion() { return Updater.currentVersion(MainActivity.this); }
+            @android.webkit.JavascriptInterface
+            public void updateNowPlaying(String title, String artist, String cover) {
+                PlaybackService.updateNowPlaying(MainActivity.this, title, artist, cover);
+            }
         }, "ZingNative");
+
+        {
+            IntentFilter f = new IntentFilter(PlaybackService.MEDIA_ACTION);
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(mediaReceiver, f, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(mediaReceiver, f);
+        }
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -130,7 +151,7 @@ public class MainActivity extends Activity {
                             if (p != playing) {
                                 playing = p;
                                 if (p) PlaybackService.start(MainActivity.this);
-                                else PlaybackService.stop(MainActivity.this);
+                                else PlaybackService.pause(MainActivity.this);
                             }
                         });
             } catch (Exception ignored) {}
@@ -152,9 +173,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(audioPoller);
+        try { unregisterReceiver(mediaReceiver); } catch (Exception ignored) {}
         PlaybackService.stop(this);
         if (web != null) web.destroy();
         super.onDestroy();
     }
 }
+
 
