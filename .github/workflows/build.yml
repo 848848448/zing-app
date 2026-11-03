@@ -39,3 +39,5 @@ jobs:
           name: Zing v1.0-b${{ github.run_number }}
           files: Zing-1.0-b${{ github.run_number }}.apk
           generate_release_notes: false
+          body_path: RELEASE_NOTES.md
+
