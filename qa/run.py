@@ -60,7 +60,7 @@ with open("qa-fixture/index.html", "w") as f:
             '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
             '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
-            '<script>try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
+            '<script>window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
             'document.getElementById("bld").textContent=ZingNative.getAppBuild();}}catch(e){}</script>')
 import base64
 # 1x1 white jpeg, enough to exercise the artwork fetch path
@@ -183,7 +183,7 @@ sh("adb shell dumpsys notification > qa-out/notif.txt")
 notif = open("qa-out/notif.txt").read()
 result("playback notification while backgrounded", "pkg=com.zingmusic.app" in notif and "channel=playback" in notif)
 print("NOTIF-DUMP-BEGIN"); print(notif[:4000]); print("NOTIF-DUMP-END", flush=True)
-result("notification shows now-playing title", "QA Fixture Song" in notif)
+# title asserted from the expanded shade below (dumpsys redacts values)
 result("notification has media actions", "Pause" in notif or "Play" in notif)
 # Bring the app back to the foreground so the media receiver can drive the page,
 # then tap the REAL notification Pause action and confirm playback pauses.
@@ -193,6 +193,7 @@ sh("adb shell cmd statusbar expand-notifications")
 time.sleep(4)
 shade = dump("notif-shade")
 shot("qa-3b-notification")
+result("notification shows now-playing title", bool(nodes_with(shade, "QA Fixture Song")))
 pausebtn = nodes_with(shade, "Pause")
 result("notification Pause action tappable", bool(pausebtn))
 try:
