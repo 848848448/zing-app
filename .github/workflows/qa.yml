@@ -53,7 +53,12 @@ jobs:
       - name: Install emulator + system image
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "emulator" "system-images;android-34;google_apis;x86_64"
+          for i in 1 2 3; do
+            sudo rm -rf "$ANDROID_HOME/.temp" "$ANDROID_HOME/system-images/android-34" 2>/dev/null || true
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "emulator" "system-images;android-34;google_apis;x86_64" && break
+            echo "sdkmanager attempt $i failed, retrying"; sleep 5
+          done
+          ls "$ANDROID_HOME/system-images/android-34/google_apis/x86_64/" | head -5
       - name: Boot emulator and run QA
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
