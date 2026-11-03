@@ -394,7 +394,10 @@ if PW:
         for f in ("live-0b", "live-1"):
             try: os.remove("qa-out/%s.xml" % f)
             except OSError: pass
-        if not tap_word("Sign in"):
+        btns = [n for n in root.iter("node") if (n.get("text") or "").strip() == "Sign in"] if root is not None else []
+        if btns:
+            tap(btns[-1])   # the submit button is the last "Sign in" (the first is the tab)
+        else:
             print("no Sign in button found", flush=True)
         time.sleep(12)
         for attempt in range(6):
