@@ -111,7 +111,9 @@ for attempt in range(10):
     time.sleep(4)
 shot("prod-4-update-dialog")
 result("update dialog shown on previous build", bool(nodes_with(root, "Update available")))
-result("dialog shows What's new notes", bool(nodes_with(root, "What's new")))
+# Note: this dialog is rendered by the PREVIOUS build's own updater code, so the
+# b8 "What's new" display cannot appear here; it is verified in qa/run.py where
+# the installed build carries the new updater.
 upd = exact(root, "Update")
 if upd is not None:
     tap(upd)
