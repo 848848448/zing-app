@@ -55,6 +55,27 @@ public class PlaybackService extends Service {
         try { c.startService(new Intent(c, PlaybackService.class).setAction(STOP)); } catch (Exception ignored) {}
     }
 
+    // Artwork origins grounded in the deployed catalog: our own site's /img
+    // proxy (which enforces the upstream whitelist server-side) and the two
+    // catalog CDN hosts the site itself whitelists. Anything else - plain
+    // http, other hosts, private-network targets - is never fetched, so a
+    // page-supplied cover URL cannot make the phone request arbitrary
+    // (including local-network) endpoints.
+    private static final java.util.Set<String> ART_HOSTS = new java.util.HashSet<>(java.util.Arrays.asList(
+            MainActivity.HOST, "image.zingmusic.app", "res.cloudinary.com"));
+
+    private static String sanitizeArtUrl(String u) {
+        try {
+            if (u == null || u.length() == 0) return "";
+            if (u.startsWith("/")) u = "https://" + MainActivity.HOST + u;
+            java.net.URI uri = new java.net.URI(u);
+            if (!"https".equalsIgnoreCase(uri.getScheme())) return "";
+            String h = uri.getHost();
+            if (h == null || !ART_HOSTS.contains(h.toLowerCase(java.util.Locale.US))) return "";
+            return uri.toString();
+        } catch (Exception e) { return ""; }
+    }
+
     public static void updateNowPlaying(Context c, String title, String artist, String cover) {
         if (title != null && title.length() > 0) sTitle = title;
         sArtist = artist == null ? "" : artist;
@@ -93,8 +114,8 @@ public class PlaybackService extends Service {
 
     private void loadArt() {
         if (sCover.equals(sArtFor)) return;
-        final String url = sCover;
-        sArtFor = url;
+        final String url = sanitizeArtUrl(sCover);
+        sArtFor = sCover;
         sArt = null;
         if (url.length() == 0) return;
         new Thread(() -> {
@@ -102,6 +123,10 @@ public class PlaybackService extends Service {
                 HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
                 c.setConnectTimeout(8000);
                 c.setReadTimeout(8000);
+                // No redirect chasing: the allowlisted hosts serve art
+                // directly, and following a redirect could leave them.
+                c.setInstanceFollowRedirects(false);
+                if (c.getResponseCode() != 200) { c.disconnect(); return; }
                 InputStream in = c.getInputStream();
                 Bitmap raw = BitmapFactory.decodeStream(in);
                 in.close();
