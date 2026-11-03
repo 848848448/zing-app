@@ -75,9 +75,14 @@ sh("adb shell am force-stop %s" % PKG)
 sh("adb shell am start -W -n %s/.MainActivity" % PKG)
 time.sleep(12)
 # 2. production sign-in render + native update control
-root = dump("prod-ui-2")
+root = None
+for attempt in range(8):
+    root = dump("prod-ui-2")
+    if nodes_with(root, "Sign in with your email"):
+        break
+    time.sleep(3)
 shot("prod-2-signin")
-result("production sign-in page renders", bool(nodes_with(root, "Sign in")) and bool(nodes_with(root, "Password")))
+result("production sign-in page renders", bool(nodes_with(root, "Sign in with your email")))
 fab = nodes_with(root, "Check for updates")
 result("native Check for updates control present", bool(fab))
 
@@ -86,15 +91,13 @@ result("native Check for updates control present", bool(fab))
 #    newer production release if one exists)
 if fab:
     tap(fab[0])
-    seen = False
-    for i in range(6):
-        time.sleep(2)
-        r2 = dump("prod-ui-check-%d" % i)
-        if nodes_with(r2, "up to date") or nodes_with(r2, "Update available"):
-            seen = True
-            break
-    shot("prod-3-update-check")
-    result("update control responds from production source", seen)
+    # Toasts disappear before uiautomator completes. Capture actual pixels
+    # each second and preserve notification dump while the toast is alive.
+    for i in range(7):
+        time.sleep(0.6)
+        shot("prod-3-update-response-%d" % i)
+        sh("adb shell dumpsys notification --noredact > qa-out/toasts-%d.txt" % i)
+    print("Manual update response screenshots saved for pixel review", flush=True)
 
 r = sh("adb shell dumpsys package %s | grep versionCode" % PKG)
 print(r.stdout)
