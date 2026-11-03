@@ -11,12 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download latest production APK
+      - name: Download latest and previous production APKs
         run: |
-          URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url')
-          echo "production APK: $URL"
+          curl -s https://api.github.com/repos/${{ github.repository }}/releases?per_page=2 > /tmp/releases.json
+          URL=$(jq -r '.[0].assets[] | select(.name | endswith(".apk")) | .browser_download_url' /tmp/releases.json)
+          PREV=$(jq -r '.[1].assets[] | select(.name | endswith(".apk")) | .browser_download_url' /tmp/releases.json)
+          echo "latest: $URL"; echo "previous: $PREV"
           curl -sL -o prod.apk "$URL"
-          ls -la prod.apk
+          curl -sL -o prev.apk "$PREV"
+          ls -la prod.apk prev.apk
       - name: Enable KVM (GitHub-hosted Linux runner)
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -61,3 +64,4 @@ jobs:
         with:
           name: prod-check-output
           path: qa-out/
+
