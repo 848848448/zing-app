@@ -62,7 +62,8 @@ jobs:
       - name: Boot emulator and run QA
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n zingqa -k "system-images;android-34;google_apis;x86_64" --device "pixel_6"
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n zingqa -k "system-images;android-34;google_apis;x86_64" || { echo "AVD-CREATE-FAILED"; exit 1; }
+          ls -la ~/.android/avd/
           nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-audio -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save -verbose >/tmp/emulator.log 2>&1 &
           sleep 5; tail -5 /tmp/emulator.log || true
           timeout 180 adb wait-for-device || { echo "ADB-WAIT-TIMEOUT"; tail -40 /tmp/emulator.log; exit 1; }
