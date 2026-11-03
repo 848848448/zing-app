@@ -56,7 +56,8 @@ os.makedirs("qa-fixture", exist_ok=True)
 with open("qa-fixture/index.html", "w") as f:
     f.write('<!doctype html><title>Zing QA fixture</title>'
             '<body style="background:#0a0a12;color:#fff">fixture'
-            '<audio id="audio" src="/tone.wav" autoplay></audio>')
+            "<button onclick=\"document.getElementById('audio').play()\">Play fixture</button>"
+            '<audio id="audio" src="/tone.wav" controls></audio>')
 sr = 8000
 with wave.open("qa-fixture/tone.wav", "wb") as w:
     w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
@@ -103,6 +104,11 @@ def playback_times():
     open("qa-out/audio-log.txt", "w").write(out)
     return [float(m.group(1)) for m in re.finditer(r'audio="true\|([0-9.]+)"', out)]
 
+play = exact(dump("ui-play"), "Play fixture")
+result("fixture play control present", play is not None)
+if play is not None:
+    tap(play)
+
 # 2. fixture audio plays and advances in the foreground
 time.sleep(8)
 t1 = playback_times()
@@ -128,12 +134,12 @@ sh("adb shell am start -n %s/.MainActivity" % PKG)
 time.sleep(15)
 root = dump("ui-4")
 shot("qa-4-prod-signin")
-result("production site renders (sign-in page)", bool(nodes_with(root, "Sign in", "Password", "Zing")))
+result("production site renders (sign-in page)", bool(nodes_with(root, "Sign in")) and bool(nodes_with(root, "Password")))
 
 # 5. update round-trip b1 -> b2 via the in-app updater, through the real UI:
 #    dialog, download, genuine unknown-source consent in Settings, installer.
 sh("adb shell am force-stop %s" % PKG)
-sh("adb shell monkey -p %s -c android.intent.category.LAUNCHER 1" % PKG)
+sh("adb shell am start -W -n %s/.MainActivity" % PKG)
 time.sleep(15)
 root5 = dump("ui-5")
 dlg = nodes_with(root5, "Update available")
@@ -162,7 +168,9 @@ if allowsrc:
         tap(upd2)
         time.sleep(20)
     root6 = dump("ui-6d")
-inst = exact(root6, "Install")
+inst = exact(root6, "Update")
+if inst is None:
+    inst = exact(root6, "Install")
 if inst is not None:
     tap(inst)
     time.sleep(20)
