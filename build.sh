@@ -15,6 +15,9 @@ mkdir -p build/classes build/gen build/dex
 # QA gate: only qa.yml sets QA_MODE=1; release builds keep the fixture hook off.
 if [ "$QA_MODE" = "1" ]; then
   sed -i 's/QA_ENABLED = false/QA_ENABLED = true/' src/com/zingmusic/app/QaFlags.java
+  # QA-only: the local audio fixture is plain HTTP on the runner loopback.
+  # Release builds (build.yml) keep usesCleartextTraffic=false.
+  sed -i 's/android:usesCleartextTraffic="false"/android:usesCleartextTraffic="true"/' AndroidManifest.xml
 fi
 
 $BT/aapt2 compile --dir res -o build/res.zip
