@@ -104,8 +104,11 @@ if allow2 is not None:
     tap(allow2)
     time.sleep(2)
     root = dump("ui-1d")
-# The auto update dialog can race the fixture checks; dismiss modals first.
-for attempt in range(6):
+# The auto update dialog and the permission prompt can race the fixture
+# checks; dismiss modals first. Cold boots can stall the first WebView
+# load, so wait generously and relaunch the activity once if stuck.
+fixture_ready = False
+for attempt in range(15):
     root = dump("ui-fixture")
     if nodes_with(root, "Update available"):
         laterx = exact(root, "Later")
@@ -113,9 +116,25 @@ for attempt in range(6):
             tap(laterx)
             time.sleep(2)
             continue
+    allowx = exact(root, "Allow")
+    if allowx is not None:
+        tap(allowx)
+        time.sleep(2)
+        continue
     if exact(root, "Bridge update check") is not None:
+        fixture_ready = True
         break
+    if attempt == 7:
+        sh("adb shell am force-stop %s" % PKG)
+        sh("adb shell am start -n %s/.MainActivity --es qa_url http://10.0.2.2:8765/" % PKG)
+        time.sleep(10)
     time.sleep(2)
+if not fixture_ready:
+    print("FIXTURE-NEVER-READY, visible nodes:")
+    for n in root.iter("node"):
+        t = (n.get("text") or "") or (n.get("content-desc") or "")
+        if t:
+            print("  NODE:", t[:120])
 shot("qa-1b-fixture-visible")
 result("floating update control removed", not nodes_with(root, "Check for updates"))
 result("bridge version shown in page", bool(nodes_with(root, "version:", "build")))
