@@ -58,6 +58,8 @@ with open("qa-fixture/index.html", "w") as f:
             '<body style="background:#0a0a12;color:#fff">fixture'
             "<button onclick=\"document.getElementById('audio').play();if(window.ZingNative&&ZingNative.updateNowPlaying)ZingNative.updateNowPlaying('QA Fixture Song','QA Artist','http://10.0.2.2:8765/cover.jpg');\">Play fixture</button>"
             '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
+            '<button id="ptest" onclick="var r=prompt(\'QA name?\',\'x\');console.log(\'QAPROMPT=\'+(r===null?\'null\':r))">Prompt test</button>'
+            '<button id="ctest" onclick="console.log(\'QACONFIRM=\'+confirm(\'QA ok?\'))">Confirm test</button>'
             '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
             '<script>window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="toggle"){if(el.paused)el.play();else el.pause();}else if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
@@ -136,6 +138,32 @@ if not fixture_ready:
         if t:
             print("  NODE:", t[:120])
 shot("qa-1b-fixture-visible")
+
+# 1c. JS dialogs: does the installed WebView host show prompt()/confirm() and return values?
+def chromium_log():
+    return sh("adb shell logcat -d -s chromium:I").stdout
+for label, btn, tag, okword in (("prompt", "Prompt test", "QAPROMPT=", "OK"), ("confirm", "Confirm test", "QACONFIRM=", "OK")):
+    root = dump("ui-" + label)
+    node = exact(root, btn)
+    if node is None:
+        result("%s test button present" % label, False)
+        continue
+    sh("adb logcat -c")
+    tap(node)
+    time.sleep(3)
+    droot = dump("ui-" + label + "-dialog")
+    shot("qa-1c-" + label + "-dialog")
+    ok_node = exact(droot, okword)
+    shown = ok_node is not None
+    result("%s dialog is shown by the app WebView" % label, shown)
+    if ok_node is not None:
+        tap(ok_node)
+        time.sleep(2)
+    out = chromium_log()
+    open("qa-out/chromium-" + label + ".txt", "w").write(out)
+    m = re.search(tag + r"(\S+)", out)
+    print("DIALOG", label, "shown=", shown, "result=", m.group(1) if m else None, flush=True)
+    result("%s returns a usable value after OK" % label, bool(m) and m.group(1) not in ("null", "false"))
 result("floating update control removed", not nodes_with(root, "Check for updates"))
 result("bridge version shown in page", bool(nodes_with(root, "version:", "build")))
 bridge = exact(root, "Bridge update check")
