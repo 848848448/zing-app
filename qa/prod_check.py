@@ -70,6 +70,10 @@ if allow is not None:
     tap(allow)
     time.sleep(3)
 
+# Restart explicitly after first-boot provider churn, preserving permission choice.
+sh("adb shell am force-stop %s" % PKG)
+sh("adb shell am start -W -n %s/.MainActivity" % PKG)
+time.sleep(12)
 # 2. production sign-in render + native update control
 root = dump("prod-ui-2")
 shot("prod-2-signin")
