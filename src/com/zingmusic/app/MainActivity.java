@@ -33,6 +33,11 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean playing = false;
     private boolean qaMode = false;
+    // Current main-frame host, maintained on the UI thread by the
+    // WebViewClient callbacks below. Bridge methods run on the JavaBridge
+    // thread, where WebView.getUrl() is illegal, so effect gating reads this
+    // cached value instead of querying the WebView cross-thread.
+    private volatile String currentPageHost = null;
 
     // Trust boundary helpers. The JavascriptInterface object below is visible
     // to EVERY frame of whatever page is loaded (platform behavior), so
@@ -44,10 +49,7 @@ public class MainActivity extends Activity {
                 || (qaMode && h != null && (h.equals("10.0.2.2") || h.equals("localhost") || h.equals("127.0.0.1")));
     }
     private boolean ownPage() {
-        try {
-            String u = web == null ? null : web.getUrl();
-            return ownHost(u == null ? null : Uri.parse(u).getHost());
-        } catch (Exception e) { return false; }
+        return ownHost(currentPageHost);
     }
     private final BroadcastReceiver mediaReceiver = new BroadcastReceiver() {
         @Override
@@ -128,6 +130,13 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageStarted(WebView v, String url, android.graphics.Bitmap favicon) {
+                Uri p = url == null ? null : Uri.parse(url);
+                currentPageHost = p == null ? null : p.getHost();
+                super.onPageStarted(v, url, favicon);
+            }
+
+            @Override
             public void onPageFinished(WebView v, String url) {
                 // Trust boundary: only our own site (and, in QA builds, the
                 // local fixture) may receive the navigator.share bridge shim.
@@ -135,6 +144,7 @@ public class MainActivity extends Activity {
                 // inside the WebView gets no bridge wiring.
                 Uri page = url == null ? null : Uri.parse(url);
                 String h = page == null ? null : page.getHost();
+                currentPageHost = h;
                 if (!ownHost(h)) return;
                 // Give pages a real navigator.share backed by the Android share
                 // sheet. Sites with their own fallback (copy link) are
@@ -235,5 +245,4 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 }
-
 
