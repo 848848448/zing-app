@@ -60,10 +60,10 @@ with open("qa-fixture/index.html", "w") as f:
             '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
             '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
-            '<script>window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
+            '<script>window.zingMediaAction=function(a){var el=document.getElementById("audio");if(!el)return;if(a==="toggle"){if(el.paused)el.play();else el.pause();}else if(a==="pause")el.pause();else if(a==="play")el.play();};try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
             'document.getElementById("bld").textContent=ZingNative.getAppBuild();}}catch(e){}</script>')
 import base64
-# 1x1 white jpeg, enough to exercise the artwork fetch path
+# 256x256 gradient jpeg: exercises the artwork path with real, recognizable art
 open("qa-fixture/cover.jpg", "wb").write(base64.b64decode(
     "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o53Z24q9xRuVLlpzv6jnf1nbir3FG5UuWni31HO7O3JXuKTdyv53nU07oe57xRuLDtip4xXnUz3uXeOD2ffrwd53gAAAAAAAAAAAAAD14/KvO94P0p+jljrpiveObxqfOvbNy0qnf1NzXeJ9xUd5zqdy3ctCd0eLfEO4qty51K5buWnO6Kd/WfuKvcUrlu5ak7op3Z24q9xSuW7lpzujndnbir3FK5buWnO/qOd/WduKvcUrlu5ac7o53Z24q9xSuVLlpzujndnbir3FG5UuWnO6Od2duKvcUblS5ac7o53Z24q9xRuVLlpzv6indnbir3FG5UuWpO6Kd/WduKvcUrlu5ak7+o53Z24q9xSuW7lpzujnf1nbir3FK5buWnO/qKd2duKrcUrlu5ak7op39Z+4q9xSuW7lqTuindnbiq3FK5buWnO6Od2fuKrcUrlS5ac7o53Z+4qtxRuVLlpzv6jndn7iq3FG5UuWnO6Od2fuKrcUblS5ac7+o539Z+4qtxRuVLlpzujndn7iq3FKxu5aWac0kndn6n3ircU2rla4TujdtxZd47vOd804vWsd44PQ8gAAAAAD14/Ko/SgAAAAAAD7nfePj53POvrly67Tu4uW4urFy3xbO6TNO5Sbiq1jnUrlu5aU7op3Z+4q9xSuW7lqTuinf1nbir3FK5buWnO/qOd2duKvcUrlu5ac7o539Z24q9xSuVLlpzujndnbir3FG5UuWnO/qOd/WduKvcUblS5ac7o53Z24q9xRuVLlpzv6jndnbir3FG5UuWnO6Od2duKvcUrlu5ac7op3Z24q9xSuW7lqTv6indnbir3FK5buWpO6Od2duKvcUrlu5ac7+op3Z24q9xSuW7lqTuindnbir3FK5buWpO6Kd2duKvcUrlu5ac7o539Z24q9xSuVLlpzujndnbir3FG5UuWnO/qOd/WduKvcUblS5ac7o53Z24q9xRuVLlpzujnf1nbir3FK5buWnO6Od2duKvcUrlu5aeLI53Z24q9xS43ctDmudSzug7nvFO4sO3KtzxbnUrpuXxwdDnedc33vO8evH5VH6TAAAAAAAAAAAAAAHLHXvFe8eHnU+demblpTO6bne8cNxd/n1O5bsaE7+o8W7xFuKrUudSuW7lpzuinf1n7ir3FK5UuWpO6Kd2duKvcUblS5ac7o53Z24qtxRuVLlpzv6jndn7ir3FG5UuWnO6Od/WduKvcUblS5ac7o53Z24qtxRuVLlpzv6jndn7ir3FK5buWnO/qOd2duKrcUrlu5ac7op39Z+4qtxSuW7lqTv6inf1n7iq3FK5buWpO6Od2fuKrcUrlu5ac7op39Z+4qtxSuW7lqTuindn7iq3FK5buWpO6Kd2fuKrcUrlS5ak7+op3Z+4qtxRuVLlpzujndn7iq3FG5UuWnO/qOd/WfuKrcUblS5ac7o53Z+4qtxSuW7lpzujnf1n7iq3FK5buWnO6Od2fuKrcUrlu5ac7o53Z+4qtxepH5qH6BAAAAAAAAAAAAAAAAAAAAAfea7x8fO8519cuXXXFvjk57l9dGLltZO/qTO+5S7ip7nnUrlu5aU7op3Qbir3FK5UuWpO6Kd2duKvcUblS5ac7+o53Z24q9xRuVLlpzujnf1nbir3FG5UuWnO/qOd2duKvcUrlu5ac7o53Z24q9xSuW7lpzv6jnf1nbir3FK5buWnO6Od2duKvcUrlu5ac7+o53Z24q9xSuW7lpzuindnbir3FK5buWpO6Kd2duKvcUrlu5ak7+o53Z24q9xSuVLlpzuindnbir3FG5UuWpO6Kd2duKvcUblS5ak7op39Z24q9xRuVLlpzujndnbir3FG5UuWnO6Od/WduKvcUrlu5ac7o53Z24q9xeiH8DH9rAAAAAAAAAAAAAAAAAAAAAAAAAAAADg9Zp3Ly86xzr0zctKJ3T/fjjuLsnct2L53R4r3iPcVWp86lcqXLTnf1FO7P3FVuKNypctOd0c7+s/cVW4o3Kly053Rzuz9xVbilct3LTnf1HO7P3FVuKVy3ctOd0c7s/cVW4pXLdy053Rzv6z9xVbilct3LTndHO7P3FVuKVy3ctOd/Uc7s/cVW4pXLdy053RTv6z9xVbilct3LUndFO7PpFVuKVypctSd0U7s/cVW4o3Kly1J3RTuz9xVbijcqXLUnf1FO7P3FVuKNypctSd0U7+s/cVW4v/9k="))
 sr = 8000
@@ -194,25 +194,52 @@ time.sleep(4)
 shade = dump("notif-shade")
 shot("qa-3b-notification")
 result("notification shows now-playing title", bool(nodes_with(shade, "QA Fixture Song")))
-pausebtn = nodes_with(shade, "Pause")
+pausebtn = exact(shade, "Pause") or (nodes_with(shade, "Pause") or [None])[0]
 result("notification Pause action tappable", bool(pausebtn))
+
+def audio_states():
+    out = sh("adb shell logcat -d -s ZingQA:I").stdout
+    return re.findall(r'audio="(true|false)\|', out)
+
+def wait_audio_state(want, seen, tries=6):
+    # wait for a NEW ZingQA line (beyond the pre-tap count) reporting the wanted state
+    st = audio_states()
+    for _ in range(tries):
+        if len(st) > seen and st[-1] == want:
+            return st
+        time.sleep(4)
+        st = audio_states()
+    return st
+
 try:
     if pausebtn:
-        tap(pausebtn[0])
-        time.sleep(4)
+        pre = len(audio_states())
+        tap(pausebtn)
+        time.sleep(3)
         sh("adb shell cmd statusbar collapse")
-        time.sleep(5)
-        result("notification Pause actually pauses audio", last_audio_state() == "false")
+        st = wait_audio_state("false", pre)
+        print("AUDIO-LOG-AFTER-PAUSE-BEGIN")
+        print(sh("adb shell logcat -d -s ZingQA:I").stdout[-1200:])
+        print("AUDIO-LOG-AFTER-PAUSE-END", flush=True)
+        paused_ok = len(st) > pre and st[-1] == "false"
+        result("notification Pause actually pauses audio", paused_ok)
         sh("adb shell cmd statusbar expand-notifications")
         time.sleep(4)
         shade2 = dump("notif-shade-2")
-        playbtn = nodes_with(shade2, "Play")
-        if playbtn:
-            tap(playbtn[0])
-            time.sleep(4)
+        playbtn = exact(shade2, "Play")
+        result("notification flips to Play when paused", bool(playbtn))
+        if not paused_ok or playbtn is None:
+            result("notification Play resumes audio", False)
+        else:
+            pre2 = len(audio_states())
+            tap(playbtn)
+            time.sleep(3)
             sh("adb shell cmd statusbar collapse")
-            time.sleep(5)
-            result("notification Play resumes audio", last_audio_state() == "true")
+            st2 = wait_audio_state("true", pre2)
+            print("AUDIO-LOG-AFTER-PLAY-BEGIN")
+            print(sh("adb shell logcat -d -s ZingQA:I").stdout[-1200:])
+            print("AUDIO-LOG-AFTER-PLAY-END", flush=True)
+            result("notification Play resumes audio", len(st2) > pre2 and st2[-1] == "true")
 finally:
     sh("adb shell cmd statusbar collapse")
     time.sleep(2)
