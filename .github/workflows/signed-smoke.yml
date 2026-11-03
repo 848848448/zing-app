@@ -1,0 +1,83 @@
+name: signed-smoke
+on:
+  workflow_dispatch:
+    inputs:
+      build_no:
+        description: 'versionCode to stamp (use the latest release build number so the updater treats it as up to date)'
+        required: true
+        default: '9'
+
+# Pre-release final smoke: builds and signs the production APK from main with
+# the existing signing secrets, installs THAT signed APK on an emulator, and
+# verifies launch, sign-in page, updater quiet state, and that the QA hook is
+# compiled out. Publishes nothing; artifacts use minimal retention and are
+# deleted after review.
+
+jobs:
+  signed-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: SDK packages (preinstalled on ubuntu-latest)
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Build unsigned APK (release mode, QA hook off)
+        env:
+          BUILD_NO: ${{ inputs.build_no }}
+        run: bash build.sh
+      - name: Decode signing key
+        run: echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/zing.jks"
+      - name: Sign APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE: ${{ runner.temp }}/zing.jks
+          BUILD_NO: ${{ inputs.build_no }}
+        run: bash sign.sh
+      - name: Stage signed APK for the smoke
+        run: cp "Zing-1.0-b${{ inputs.build_no }}.apk" signed.apk
+      - name: Enable KVM (GitHub-hosted Linux runner)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Install emulator + system image
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          for i in 1 2 3; do
+            sudo rm -rf "$ANDROID_HOME/.temp" "$ANDROID_HOME/system-images/android-34" 2>/dev/null || true
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "emulator" "system-images;android-34;google_apis;x86_64" && break
+            echo "sdkmanager attempt $i failed, retrying"; sleep 5
+          done
+      - name: Boot emulator and run signed smoke
+        env:
+          EXPECTED_VC: ${{ inputs.build_no }}
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          printf 'no\n' | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager --verbose create avd --force --name zingqa --package "system-images;android-34;google_apis;x86_64" 2>&1 | tail -25
+          [ -f "$ANDROID_AVD_HOME/zingqa.ini" ] || { echo "AVD-INI-MISSING"; exit 1; }
+          nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save -verbose >/tmp/emulator.log 2>&1 &
+          sleep 5; tail -5 /tmp/emulator.log || true
+          timeout 180 adb wait-for-device || { echo "ADB-WAIT-TIMEOUT"; tail -40 /tmp/emulator.log; exit 1; }
+          timeout 240 bash -c 'until adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; do sleep 2; done' || { echo "BOOT-TIMEOUT"; tail -40 /tmp/emulator.log; exit 1; }
+          sleep 60
+          adb shell input keyevent KEYCODE_WAKEUP
+          adb shell wm dismiss-keyguard
+          adb shell settings put system screen_off_timeout 1800000
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          python3 $GITHUB_WORKSPACE/qa/signed_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signed-smoke-output
+          path: qa-out/
+          retention-days: 1
