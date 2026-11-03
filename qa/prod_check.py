@@ -126,12 +126,21 @@ if allowsrc:
     time.sleep(3)
     sh("adb shell input keyevent KEYCODE_BACK")
     time.sleep(6)
-    # re-trigger the update flow via a fresh launch (auto-check)
+    # re-trigger the update flow via a fresh launch (auto-check); poll for the dialog
     sh("adb shell am force-stop %s" % PKG)
     sh("adb shell am start -W -n %s/.MainActivity" % PKG)
-    time.sleep(15)
-    root = dump("prod-ui-redialog")
-    upd2 = exact(root, "Update")
+    time.sleep(8)
+    upd2 = None
+    for attempt in range(12):
+        root = dump("prod-ui-redialog")
+        upd2 = exact(root, "Update")
+        if upd2 is not None:
+            break
+        allowx = exact(root, "Allow")
+        if allowx is not None:
+            tap(allowx)
+        time.sleep(4)
+    result("update dialog reshown after consent", upd2 is not None)
     if upd2 is not None:
         tap(upd2)
         time.sleep(20)
