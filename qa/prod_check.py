@@ -51,8 +51,7 @@ def result(name, ok):
     with open("qa-out/results.txt", "a") as f:
         f.write(("PASS " if ok else "FAIL ") + name + "\n")
 
-# Genuine first install of the hook-free production APK: no pregranted
-# permissions, no appops bypass. Every prompt is answered through visible UI.
+# ============ Phase A: latest production APK, clean install ============
 r = sh("adb install prod.apk")
 result("install production APK", "Success" in r.stdout)
 sh("adb shell input keyevent KEYCODE_WAKEUP")
@@ -61,7 +60,6 @@ r = sh("adb shell am start -W -n %s/.MainActivity" % PKG)
 print(r.stdout, r.stderr, flush=True)
 time.sleep(15)
 
-# 1. first-install notification permission prompt, tapped through the UI
 root = dump("prod-ui-1")
 shot("prod-1-first-launch")
 allow = exact(root, "Allow")
@@ -70,11 +68,9 @@ if allow is not None:
     tap(allow)
     time.sleep(3)
 
-# Restart explicitly after first-boot provider churn, preserving permission choice.
 sh("adb shell am force-stop %s" % PKG)
 sh("adb shell am start -W -n %s/.MainActivity" % PKG)
 time.sleep(12)
-# 2. production sign-in render + native update control
 root = None
 for attempt in range(8):
     root = dump("prod-ui-2")
@@ -83,27 +79,75 @@ for attempt in range(8):
     time.sleep(3)
 shot("prod-2-signin")
 result("production sign-in page renders", bool(nodes_with(root, "Sign in with your email")))
-fab = nodes_with(root, "Check for updates")
-result("native Check for updates control present", bool(fab))
 
-# 3. exercise the control with the production update source: installed build is
-#    the latest release, so a manual check must answer up-to-date (or offer a
-#    newer production release if one exists)
-if fab:
-    tap(fab[0])
-    # Toasts disappear before uiautomator completes. Capture actual pixels
-    # each second and preserve notification dump while the toast is alive.
-    for i in range(7):
-        time.sleep(0.6)
-        shot("prod-3-update-response-%d" % i)
-        sh("adb shell dumpsys notification --noredact > qa-out/toasts-%d.txt" % i)
-    print("Manual update response screenshots saved for pixel review", flush=True)
+# The floating update FAB was removed in b8: no "Check for updates" overlay
+# may be present on screen anymore.
+result("floating update control removed", not nodes_with(root, "Check for updates"))
+
+# Installed build IS the latest release: the auto-check must not offer an update.
+result("no update dialog when up-to-date", not nodes_with(root, "Update available"))
 
 r = sh("adb shell dumpsys package %s | grep versionCode" % PKG)
 print(r.stdout)
 m = re.search(r"versionCode=(\d+)", r.stdout)
 result("production versionCode recorded", bool(m))
+result("production versionCode exceeds 7", bool(m) and int(m.group(1)) > 7)
+latest_vc = int(m.group(1)) if m else -1
+
+# ============ Phase B: real update installation prev -> latest ============
+sh("adb uninstall %s" % PKG)
+r = sh("adb install prev.apk")
+result("install previous release APK", "Success" in r.stdout)
+sh("adb shell am start -W -n %s/.MainActivity" % PKG)
+time.sleep(20)
+root = None
+for attempt in range(10):
+    root = dump("prod-ui-upd")
+    if nodes_with(root, "Update available"):
+        break
+    allow = exact(root, "Allow")
+    if allow is not None:
+        tap(allow)
+    time.sleep(4)
+shot("prod-4-update-dialog")
+result("update dialog shown on previous build", bool(nodes_with(root, "Update available")))
+result("dialog shows What's new notes", bool(nodes_with(root, "What's new")))
+upd = exact(root, "Update")
+if upd is not None:
+    tap(upd)
+time.sleep(25)
+root = dump("prod-ui-consent")
+allowsrc = nodes_with(root, "Allow from this source")
+if allowsrc:
+    shot("prod-5-unknown-sources")
+    tap(allowsrc[0])
+    time.sleep(3)
+    sh("adb shell input keyevent KEYCODE_BACK")
+    time.sleep(6)
+    # re-trigger the update flow via a fresh launch (auto-check)
+    sh("adb shell am force-stop %s" % PKG)
+    sh("adb shell am start -W -n %s/.MainActivity" % PKG)
+    time.sleep(15)
+    root = dump("prod-ui-redialog")
+    upd2 = exact(root, "Update")
+    if upd2 is not None:
+        tap(upd2)
+        time.sleep(20)
+    root = dump("prod-ui-install")
+inst = exact(root, "Update")
+if inst is None:
+    inst = exact(root, "Install")
+if inst is not None:
+    tap(inst)
+    time.sleep(20)
+    done = nodes_with(dump("prod-ui-done"), "Done", "Open")
+    if done:
+        tap(done[0])
+r = sh("adb shell dumpsys package %s | grep versionCode" % PKG)
+print(r.stdout)
+result("latest installed via real in-app update", ("versionCode=%d" % latest_vc) in r.stdout)
+shot("prod-6-updated")
+
 sh("adb shell logcat -d > qa-out/full-logcat.txt")
-sh("adb shell dumpsys activity activities > qa-out/activities.txt")
 print(open("qa-out/results.txt").read(), flush=True)
 sys.exit(1 if FAILURES else 0)
