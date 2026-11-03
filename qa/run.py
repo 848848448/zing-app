@@ -2,10 +2,11 @@ import os, re, subprocess, sys, time, math, struct, wave, xml.etree.ElementTree 
 
 os.makedirs("qa-out", exist_ok=True)
 PKG = "com.zingmusic.app"
+FAILURES = []
 
-def sh(cmd, check=False):
+def sh(cmd):
     print("+", cmd, flush=True)
-    return subprocess.run(cmd, shell=True, capture_output=True, text=True, check=check)
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
 def dump(name):
     sh("adb shell uiautomator dump /sdcard/ui.xml")
@@ -29,13 +30,19 @@ def nodes_with(root, *words):
             out.append(n)
     return out
 
+def exact(root, word):
+    if root is None:
+        return None
+    for n in root.iter("node"):
+        if (n.get("text") or "").strip().lower() == word.lower():
+            return n
+    return None
+
 def tap(node):
     m = re.findall(r"\d+", node.get("bounds"))
     x = (int(m[0]) + int(m[2])) // 2
     y = (int(m[1]) + int(m[3])) // 2
     sh("adb shell input tap %d %d" % (x, y))
-
-FAILURES = []
 
 def result(name, ok):
     print(("PASS " if ok else "FAIL ") + name, flush=True)
@@ -63,14 +70,20 @@ time.sleep(2)
 
 sh("adb logcat -c")
 
-# 1. install b1 + launch with the fixture URL (QA mode)
+# 1. install b1 + launch with the fixture URL (QA mode). Genuine first
+#    install: no pregranted permissions; the notification prompt is answered
+#    through the visible system dialog.
 r = sh("adb install -r qa-b1.apk"); result("install b1", "Success" in r.stdout)
-sh("adb shell pm grant %s android.permission.POST_NOTIFICATIONS" % PKG)
-sh("adb shell appops set %s REQUEST_INSTALL_PACKAGES allow" % PKG)
 sh("adb shell am start -n %s/.MainActivity --es qa_url http://10.0.2.2:8765/" % PKG)
-time.sleep(20)
+time.sleep(15)
 shot("qa-1-launched")
 root = dump("ui-1")
+allow = exact(root, "Allow")
+result("first-install notification prompt shown", allow is not None)
+if allow is not None:
+    tap(allow)
+    time.sleep(3)
+    root = dump("ui-1b")
 result("update control present", bool(nodes_with(root, "Check for updates")))
 
 def playback_times():
@@ -102,40 +115,47 @@ root = dump("ui-4")
 shot("qa-4-prod-signin")
 result("production site renders (sign-in page)", bool(nodes_with(root, "Sign in", "Password", "Zing")))
 
-# 5. update round-trip b1 -> b2 via the in-app updater
+# 5. update round-trip b1 -> b2 via the in-app updater, through the real UI:
+#    dialog, download, genuine unknown-source consent in Settings, installer.
 sh("adb shell am force-stop %s" % PKG)
 sh("adb shell monkey -p %s -c android.intent.category.LAUNCHER 1" % PKG)
 time.sleep(15)
-dlg = nodes_with(dump("ui-5"), "Update available")
+root5 = dump("ui-5")
+dlg = nodes_with(root5, "Update available")
 result("update dialog shown for b2", bool(dlg))
-upd = nodes_with(dump("ui-5b"), "Update")
-upd = [n for n in upd if "check for updates" not in ((n.get("content-desc") or "").lower())]
-if upd:
-    tap(upd[0])
-time.sleep(30)
+shot("qa-5-update-dialog")
+upd = exact(root5, "Update")
+if upd is not None:
+    tap(upd)
+time.sleep(25)
 root6 = dump("ui-6")
-allow = nodes_with(root6, "Allow from this source")
-if allow:
-    tap(allow[0])
+allowsrc = nodes_with(root6, "Allow from this source")
+if allowsrc:
+    shot("qa-6-unknown-sources")
+    tap(allowsrc[0])
     time.sleep(3)
     sh("adb shell input keyevent KEYCODE_BACK")
-    time.sleep(8)
-    upd2 = nodes_with(dump("ui-6b"), "Update")
-    upd2 = [n for n in upd2 if "check for updates" not in ((n.get("content-desc") or "").lower())]
-    if upd2:
-        tap(upd2[0])
-    time.sleep(25)
-    root6 = dump("ui-6c")
-inst = nodes_with(root6, "Install")
-if inst:
-    tap(inst[0])
+    time.sleep(6)
+    fab = nodes_with(dump("ui-6b"), "Check for updates")
+    if fab:
+        tap(fab[0])
+        time.sleep(6)
+    root6b = dump("ui-6c")
+    upd2 = exact(root6b, "Update")
+    if upd2 is not None:
+        tap(upd2)
+        time.sleep(20)
+    root6 = dump("ui-6d")
+inst = exact(root6, "Install")
+if inst is not None:
+    tap(inst)
     time.sleep(20)
     done = nodes_with(dump("ui-7"), "Done", "Open")
     if done: tap(done[0])
 r = sh("adb shell dumpsys package %s | grep versionCode" % PKG)
 print(r.stdout)
 result("b2 installed via in-app updater", "versionCode=2" in r.stdout)
-shot("qa-5-updated")
+shot("qa-7-updated")
 
 server.terminate()
 print(open("qa-out/results.txt").read(), flush=True)
