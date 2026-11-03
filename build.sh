@@ -18,6 +18,9 @@ if [ "$QA_MODE" = "1" ]; then
   # QA-only: the local audio fixture is plain HTTP on the runner loopback.
   # Release builds (build.yml) keep usesCleartextTraffic=false.
   sed -i 's/android:usesCleartextTraffic="false"/android:usesCleartextTraffic="true"/' AndroidManifest.xml
+else
+  sed -i 's/QA_ENABLED = true/QA_ENABLED = false/' src/com/zingmusic/app/QaFlags.java
+  sed -i 's/android:usesCleartextTraffic="true"/android:usesCleartextTraffic="false"/' AndroidManifest.xml
 fi
 
 $BT/aapt2 compile --dir res -o build/res.zip
