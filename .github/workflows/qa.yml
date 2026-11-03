@@ -62,7 +62,8 @@ jobs:
       - name: Boot emulator and run QA
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-          mkdir -p ~/.android/avd
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           printf 'no\n' | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager --verbose create avd --force --name zingqa --package "system-images;android-34;google_apis;x86_64" 2>&1 | tail -25
           ls -la ~/.android/avd/ || true
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd || true
