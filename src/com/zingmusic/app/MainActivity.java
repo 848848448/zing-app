@@ -33,6 +33,22 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean playing = false;
     private boolean qaMode = false;
+
+    // Trust boundary helpers. The JavascriptInterface object below is visible
+    // to EVERY frame of whatever page is loaded (platform behavior), so
+    // gating shim injection at onPageFinished alone is not isolation: any
+    // effect-causing bridge method re-checks the current main-frame host at
+    // call time before acting.
+    private boolean ownHost(String h) {
+        return HOST.equals(h)
+                || (qaMode && h != null && (h.equals("10.0.2.2") || h.equals("localhost") || h.equals("127.0.0.1")));
+    }
+    private boolean ownPage() {
+        try {
+            String u = web == null ? null : web.getUrl();
+            return ownHost(u == null ? null : Uri.parse(u).getHost());
+        } catch (Exception e) { return false; }
+    }
     private final BroadcastReceiver mediaReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent i) {
@@ -64,17 +80,19 @@ public class MainActivity extends Activity {
 
         web.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
-            public void checkForUpdates() { Updater.check(MainActivity.this, true); }
+            public void checkForUpdates() { if (!ownPage()) return; Updater.check(MainActivity.this, true); }
             @android.webkit.JavascriptInterface
             public int getAppBuild() { return Updater.currentBuild(MainActivity.this); }
             @android.webkit.JavascriptInterface
             public String getAppVersion() { return Updater.currentVersion(MainActivity.this); }
             @android.webkit.JavascriptInterface
             public void updateNowPlaying(String title, String artist, String cover) {
+                if (!ownPage()) return;
                 PlaybackService.updateNowPlaying(MainActivity.this, title, artist, cover);
             }
             @android.webkit.JavascriptInterface
             public void share(String title, String url) {
+                if (!ownPage()) return;
                 MainActivity.this.runOnUiThread(() -> {
                     try {
                         String t = title == null ? "" : title;
@@ -100,7 +118,12 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
                 if (u != null && HOST.equals(u.getHost())) return false;
-                try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) {}
+                // Only ordinary web links may leave the app. Other schemes
+                // (intent:, market:, javascript:, file:, ...) are dropped.
+                String scheme = u == null ? null : u.getScheme();
+                if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) {}
+                }
                 return true;
             }
 
@@ -112,9 +135,7 @@ public class MainActivity extends Activity {
                 // inside the WebView gets no bridge wiring.
                 Uri page = url == null ? null : Uri.parse(url);
                 String h = page == null ? null : page.getHost();
-                boolean own = HOST.equals(h)
-                        || (qaMode && h != null && (h.equals("10.0.2.2") || h.equals("localhost") || h.equals("127.0.0.1")));
-                if (!own) return;
+                if (!ownHost(h)) return;
                 // Give pages a real navigator.share backed by the Android share
                 // sheet. Sites with their own fallback (copy link) are
                 // untouched when this bridge is absent.
