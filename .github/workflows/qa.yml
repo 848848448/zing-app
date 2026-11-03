@@ -52,9 +52,11 @@ jobs:
           ls -l /dev/kvm
       - name: Install emulator + system image
         run: |
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "emulator" "system-images;android-34;google_apis;x86_64"
       - name: Boot emulator and run QA
         run: |
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n zingqa -k "system-images;android-34;google_apis;x86_64" --device "pixel_6"
           nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-audio -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save >/tmp/emulator.log 2>&1 &
           adb wait-for-device
