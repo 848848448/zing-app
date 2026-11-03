@@ -343,6 +343,129 @@ for attempt in range(8):
 shot("qa-4-prod-signin")
 result("production site renders (sign-in page)", bool(nodes_with(root, "Sign in with your email")))
 
+# 4b. LIVE signed-in route on the production site (isolated QA account; the
+# password comes from the ZING_QA_PASSWORD Actions secret and is never printed).
+def quiet(cmd):
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+def edits(root):
+    return [n for n in root.iter("node") if (n.get("class") or "").endswith("EditText")] if root is not None else []
+
+def texts(root, limit=40):
+    out = []
+    if root is not None:
+        for n in root.iter("node"):
+            t = (n.get("text") or n.get("content-desc") or "").strip()
+            if t:
+                out.append(t)
+    return out[:limit]
+
+def tap_word(word):
+    root = dump("tw")
+    n = exact(root, word)
+    if n is None:
+        hits = nodes_with(root, word)
+        n = hits[0] if hits else None
+    if n is not None:
+        tap(n)
+        return True
+    return False
+
+PW = os.environ.get("ZING_QA_PASSWORD", "")
+QA_USER = "zing-qa@zing-qa.invalid"
+if PW:
+    root = dump("live-0")
+    ed = edits(root)
+    result("live sign-in form shows email and password fields", len(ed) >= 2)
+    if len(ed) >= 2:
+        tap(ed[0]); time.sleep(1)
+        quiet("adb shell input text '%s'" % QA_USER)
+        tap(ed[1]); time.sleep(1)
+        quiet("adb shell input text '%s'" % PW)
+        sh("adb shell input keyevent KEYCODE_BACK")
+        time.sleep(2)
+        shot("live-1-filled")
+        root = dump("live-1")
+        if not tap_word("Sign in"):
+            print("no Sign in button found", flush=True)
+        time.sleep(12)
+        for attempt in range(6):
+            root = dump("live-2")
+            if exact(root, "Later") is not None:
+                tap(exact(root, "Later")); time.sleep(2)
+                continue
+            if nodes_with(root, "Albums", "Genres"):
+                break
+            time.sleep(3)
+        shot("live-2-after-signin")
+        print("LIVE_TEXTS", texts(root), flush=True)
+        tabs_ok = all(exact(root, w) is not None for w in ["Home", "Albums", "Search", "Genres", "Playlists", "Library", "Artists"])
+        result("live signed-in: all 7 bottom tabs visible", tabs_ok)
+        body = " ".join(texts(root, 80))
+        result("live signed-in: no time-of-day greeting", not re.search(r"Good (morning|afternoon|evening|night)", body))
+        result("live signed-in: Made from your music shown", "Made from your music" in body)
+        for name in ["Albums", "Genres", "Playlists", "Artists", "Library", "Search", "Home"]:
+            ok = tap_word(name)
+            time.sleep(4)
+            r2 = dump("live-tab-" + name)
+            shot("live-tab-" + name)
+            result("live tab opens: " + name, ok and bool(nodes_with(r2, name)))
+            print("LIVE_TAB", name, texts(r2, 25), flush=True)
+        # playlist name sheet with the soft keyboard
+        tap_word("Playlists"); time.sleep(3)
+        r3 = dump("live-pl-0")
+        newb = nodes_with(r3, "New playlist", "Create playlist", "Create", "New")
+        if newb:
+            tap(newb[0]); time.sleep(3)
+            r4 = dump("live-pl-1"); shot("live-pl-sheet")
+            e4 = edits(r4)
+            result("live playlist name sheet opens with a text field", bool(e4))
+            if e4:
+                tap(e4[0]); time.sleep(2)
+                quiet("adb shell input text 'QA_list'")
+                time.sleep(1)
+                shot("live-pl-typed")
+                result("live playlist name field accepted typing", bool(nodes_with(dump("live-pl-2"), "QA_list")))
+            sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(1)
+            sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(2)
+        else:
+            print("LIVE_PL no create control found", texts(r3, 40), flush=True)
+        # real catalog search + playback
+        tap_word("Search"); time.sleep(3)
+        r5 = dump("live-s-0"); e5 = edits(r5)
+        if e5:
+            tap(e5[0]); time.sleep(1)
+            quiet("adb shell input text 'Simcha'")
+            sh("adb shell input keyevent KEYCODE_ENTER"); time.sleep(8)
+            sh("adb shell input keyevent KEYCODE_BACK"); time.sleep(1)
+            r6 = dump("live-s-1"); shot("live-s-results")
+            print("LIVE_SEARCH", texts(r6, 40), flush=True)
+            hit = nodes_with(r6, "Simcha Bit") or nodes_with(r6, "Simcha")
+            result("live search returns results", bool(hit))
+            if hit:
+                tap(hit[0]); time.sleep(8)
+                r7 = dump("live-s-2"); shot("live-s-opened")
+                print("LIVE_OPENED", texts(r7, 40), flush=True)
+                pl = nodes_with(r7, "Play all") or nodes_with(r7, "Play")
+                if pl:
+                    tap(pl[0]); time.sleep(15)
+                ms = sh("adb shell dumpsys media_session").stdout
+                st = re.findall(r"state=PlaybackState \{state=(\d+)", ms)
+                print("LIVE_MEDIA_STATES", st, flush=True)
+                result("live real catalog track is playing (media session state 3)", "3" in st)
+                shot("live-playing")
+                nt = sh("adb shell dumpsys notification --noredact | grep -i -c 'com.zingmusic.app'").stdout.strip()
+                result("live playback shows a notification", nt not in ("", "0"))
+        # share
+        tap_word("Share"); time.sleep(4)
+        shot("live-share")
+        rs = dump("live-share")
+        print("LIVE_SHARE", texts(rs, 20), flush=True)
+        result("live Share opens the Android share sheet", bool(nodes_with(rs, "Share", "Copy", "Messages", "Nearby")) and rs is not None and PKG not in " ".join((n.get("package") or "") for n in rs.iter("node")))
+        sh("adb shell input keyevent KEYCODE_BACK")
+else:
+    print("ZING_QA_PASSWORD not set; skipping live signed-in route", flush=True)
+
 # 5. update round-trip b1 -> b2 via the in-app updater, through the real UI:
 #    dialog, download, genuine unknown-source consent in Settings, installer.
 sh("adb shell am force-stop %s" % PKG)
