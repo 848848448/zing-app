@@ -50,14 +50,19 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           ls -l /dev/kvm
-      - name: Emulator QA
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          script: |
-            python3 $GITHUB_WORKSPACE/qa/run.py
+      - name: Install emulator + system image
+        run: |
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "emulator" "system-images;android-34;google_apis;x86_64"
+      - name: Boot emulator and run QA
+        run: |
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n zingqa -k "system-images;android-34;google_apis;x86_64" --device "pixel_6"
+          nohup $ANDROID_HOME/emulator/emulator -avd zingqa -no-window -no-audio -no-boot-anim -accel on -gpu swiftshader_indirect -no-snapshot-save >/tmp/emulator.log 2>&1 &
+          adb wait-for-device
+          timeout 240 bash -c 'until adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; do sleep 2; done'
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          python3 $GITHUB_WORKSPACE/qa/run.py
       - name: Remove temporary QA release
         if: always()
         run: gh release delete v1.0-b2 --yes --cleanup-tag || true
