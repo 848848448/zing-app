@@ -56,12 +56,16 @@ os.makedirs("qa-fixture", exist_ok=True)
 with open("qa-fixture/index.html", "w") as f:
     f.write('<!doctype html><title>Zing QA fixture</title>'
             '<body style="background:#0a0a12;color:#fff">fixture'
-            "<button onclick=\"document.getElementById('audio').play();if(window.ZingNative&&ZingNative.updateNowPlaying)ZingNative.updateNowPlaying('QA Fixture Song','QA Artist','');\">Play fixture</button>"
+            "<button onclick=\"document.getElementById('audio').play();if(window.ZingNative&&ZingNative.updateNowPlaying)ZingNative.updateNowPlaying('QA Fixture Song','QA Artist','http://10.0.2.2:8765/cover.jpg');\">Play fixture</button>"
             '<div id="appver">version: <span id="ver">?</span> build <span id="bld">?</span></div>'
             '<button id="bridgecheck" onclick="window.ZingNative && window.ZingNative.checkForUpdates()">Bridge update check</button>'
             '<audio id="audio" src="/tone.wav" controls></audio>'
             '<script>try{if(window.ZingNative){document.getElementById("ver").textContent=ZingNative.getAppVersion();'
             'document.getElementById("bld").textContent=ZingNative.getAppBuild();}}catch(e){}</script>')
+import base64
+# 1x1 white jpeg, enough to exercise the artwork fetch path
+open("qa-fixture/cover.jpg", "wb").write(base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhADEAAAAV//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAl//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AV//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AV//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Al//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IV//2gAMAwEAAgADAAAAEP/EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QH//EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QH//EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8QH//Z"))
 sr = 8000
 with wave.open("qa-fixture/tone.wav", "wb") as w:
     w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
@@ -129,6 +133,11 @@ if bridge is not None:
         tap(laterd)
         time.sleep(2)
 
+def last_audio_state():
+    out = sh("adb shell logcat -d -s ZingQA:I").stdout
+    m = re.findall(r'audio="(true|false)\|', out)
+    return m[-1] if m else "none"
+
 def playback_times():
     out = sh("adb shell logcat -d -s ZingQA:I").stdout
     open("qa-out/audio-log.txt", "w").write(out)
@@ -156,6 +165,32 @@ notif = open("qa-out/notif.txt").read()
 result("playback notification while backgrounded", "pkg=com.zingmusic.app" in notif and "channel=playback" in notif)
 result("notification shows now-playing title", "QA Fixture Song" in notif)
 result("notification has media actions", "Pause" in notif or "Play" in notif)
+# Bring the app back to the foreground so the media receiver can drive the page,
+# then tap the REAL notification Pause action and confirm playback pauses.
+sh("adb shell am start -n %s/.MainActivity --es qa_url http://10.0.2.2:8765/" % PKG)
+time.sleep(6)
+sh("adb shell cmd statusbar expand-notifications")
+time.sleep(3)
+shade = dump("notif-shade")
+shot("qa-3b-notification")
+pausebtn = exact(shade, "Pause")
+result("notification Pause action tappable", pausebtn is not None)
+if pausebtn is not None:
+    tap(pausebtn)
+    time.sleep(4)
+    sh("adb shell cmd statusbar collapse")
+    time.sleep(5)
+    result("notification Pause actually pauses audio", last_audio_state() == "false")
+    sh("adb shell cmd statusbar expand-notifications")
+    time.sleep(3)
+    shade2 = dump("notif-shade-2")
+    playbtn = exact(shade2, "Play")
+    if playbtn is not None:
+        tap(playbtn)
+        time.sleep(4)
+        sh("adb shell cmd statusbar collapse")
+        time.sleep(5)
+        result("notification Play resumes audio", last_audio_state() == "true")
 print("FOREGROUND_TIMES", t1, "BACKGROUND_TIMES", t2, flush=True)
 result("playback advanced across backgrounding", bool(t1) and bool(t2) and t2[-1] > last1 + 5)
 sh("adb shell logcat -d > qa-out/full-logcat.txt")
